@@ -330,6 +330,13 @@ select, .campos input[type="text"], .campos input[type="email"] { width: 100%; h
 .ic-btn { width: 44px; padding: 0; flex: none; }
 .env-a { display: flex; gap: 8px; align-items: center; flex: none; }
 
+/* Exercício */
+.exercicio { border-top: 3px solid var(--line); }
+.exercicio.fechado { border-top-color: var(--good); }
+.exercicio .btns { margin-top: 12px; }
+.exercicio details.pv { margin-top: 12px; }
+.sheet-c .banner ul { margin: 6px 0 0; padding-left: 18px; }
+
 /* Prévia do envio */
 .previa { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 3px solid var(--gold); }
 .pv-t { font-family: var(--serif); font-size: 18px; color: var(--navy-deep); margin: 0; }

@@ -17,6 +17,9 @@ window.Data = (() => {
     relatorios: [],
     envios: [],
     igrejas: [],        // igrejas que o usuário pode ver (para o envio)
+    exercicio: { situacao: 'aberto' },  // situação do exercício (aberto / fechado)
+    eventosExercicio: [],               // fechamentos e reaberturas
+    cadastradas: [],    // igrejas vinculadas ao presbitério (inclui as que não enviaram)
   };
 
   const chaveLocal = 'painel.perfilLocal';
@@ -41,12 +44,12 @@ window.Data = (() => {
 
   async function carregarPerfil(user) {
     const { data, error } = await sb.from('perfis')
-      .select('nome, papel, igrejas(codigo, nome, cidade, uf), presbiterios(nome, sigla, sinodos(nome, sigla)), sinodos(nome, sigla)')
+      .select('nome, papel, presbiterio_id, igrejas(codigo, nome, cidade, uf), presbiterios(nome, sigla, sinodos(nome, sigla)), sinodos(nome, sigla)')
       .eq('user_id', user.id).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Seu usuário ainda não tem um perfil de acesso. Peça ao administrador para cadastrá-lo.');
     state.usuario = { email: user.email, nome: data.nome || user.email };
-    state.perfil = { papel: data.papel, igreja_codigo: data.igrejas?.codigo || null, igreja: data.igrejas || null };
+    state.perfil = { papel: data.papel, igreja_codigo: data.igrejas?.codigo || null, igreja: data.igrejas || null, presbiterio_id: data.presbiterio_id || null };
     return true;
   }
 
@@ -90,6 +93,42 @@ window.Data = (() => {
     if (p) { state.presbiterio = { nome: p.nome, sigla: p.sigla }; state.sinodo = p.sinodos; }
     state.igrejas = state.perfil.igreja ? [state.perfil.igreja] : state.relatorios.map((r) => r.igreja);
     await carregarEnvios();
+    await carregarExercicio();
+  }
+
+  // Situação do exercício e igrejas vinculadas ao presbitério (para "Não enviado")
+  async function carregarExercicio() {
+    const presb = state.perfil?.presbiterio_id;
+    state.exercicio = { situacao: 'aberto' }; state.eventosExercicio = []; state.cadastradas = [];
+    if (!presb) return;
+    const ex = await sb.from('exercicios').select('situacao, fechado_em, comentario').eq('presbiterio_id', presb).eq('ano', state.ano).maybeSingle();
+    if (!ex.error && ex.data) state.exercicio = ex.data;
+    const ev = await sb.from('exercicio_eventos').select('acao, comentario, criado_em').eq('presbiterio_id', presb).eq('ano', state.ano).order('criado_em');
+    if (!ev.error) state.eventosExercicio = ev.data; // tabela só existe depois do 006_exercicio.sql
+    if (state.perfil.papel === 'representante') return;
+    const vi = await sb.from('vinculos_igreja').select('igrejas(codigo, nome, cidade, uf, organizacao)').eq('presbiterio_id', presb).is('fim', null);
+    if (!vi.error) state.cadastradas = vi.data.map((v) => v.igrejas).filter(Boolean);
+    const comRelatorio = new Set(state.relatorios.map((r) => r.igreja.codigo));
+    for (const i of state.cadastradas) if (!state.igrejas.some((x) => x.codigo === i.codigo) && !comRelatorio.has(i.codigo)) state.igrejas.push(i);
+  }
+
+  const exercicioFechado = () => state.exercicio?.situacao === 'fechado';
+  const naoEnviadas = () => {
+    const comRelatorio = new Set(state.relatorios.map((r) => r.igreja.codigo));
+    return state.cadastradas.filter((i) => !comRelatorio.has(i.codigo));
+  };
+
+  async function fecharExercicio(comentario) {
+    if (state.modo === 'local') { state.exercicio = { situacao: 'fechado', fechado_em: new Date().toISOString(), comentario }; state.eventosExercicio.push({ acao: 'fechado', comentario, criado_em: new Date().toISOString() }); return; }
+    const { error } = await sb.rpc('fechar_exercicio', { p_ano: state.ano, p_comentario: comentario || null });
+    if (error) throw new Error(error.message);
+    await carregarExercicio();
+  }
+  async function reabrirExercicio(motivo) {
+    if (state.modo === 'local') { state.exercicio = { situacao: 'aberto' }; state.eventosExercicio.push({ acao: 'reaberto', comentario: motivo, criado_em: new Date().toISOString() }); return; }
+    const { error } = await sb.rpc('reabrir_exercicio', { p_ano: state.ano, p_motivo: motivo });
+    if (error) throw new Error(error.message);
+    await carregarExercicio();
   }
 
   async function carregarEnvios() {
@@ -122,6 +161,9 @@ window.Data = (() => {
     state.relatorios = rels;
     state.igrejas = rels.map((r) => r.igreja);
     state.envios = [];
+    state.exercicio = state.exercicio || { situacao: 'aberto' };
+    state.eventosExercicio = state.eventosExercicio || [];
+    state.cadastradas = state.perfil?.papel === 'representante' ? [] : rels.map((r) => r.igreja);
   }
 
   // ---------- Envio de relatórios ----------
@@ -251,6 +293,7 @@ window.Data = (() => {
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
+    exercicioFechado, naoEnviadas, fecharExercicio, reabrirExercicio,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();

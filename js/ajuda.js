@@ -152,6 +152,16 @@ window.Ajuda = (() => {
       </ul>`,
     },
     {
+      id: 'exercicio', titulo: 'Fechamento do exercício e igrejas que não enviaram', para: ['admin'], html: `
+      <p>Na tela <strong>Conferência</strong>, o quadro <strong>Exercício</strong> mostra igrejas cadastradas, relatórios recebidos, validados, pendentes e <strong>não enviados</strong>.</p>
+      <ul>
+        <li><strong>Não enviado:</strong> igreja vinculada ao presbitério que ainda não mandou relatório. Aparece no painel, na lista de igrejas e na Conferência; tocar nela abre o envio em nome da igreja.</li>
+        <li><strong>Fechar exercício:</strong> ao fim do recebimento, o administrador fecha o ano. Os relatórios <strong>validados</strong> passam a ser o <strong>resultado oficial</strong>; o sistema lista antes quem ficará de fora. Comentário opcional (ex.: data da reunião que aprovou).</li>
+        <li><strong>Com o exercício fechado</strong>, o banco de dados recusa novos envios, leituras, correções e mudanças de situação daquele ano. O painel e as exportações passam a dizer “resultado oficial”.</li>
+        <li><strong>Reabrir:</strong> exige motivo. Fechamentos e reaberturas ficam no <strong>Histórico do exercício</strong>.</li>
+      </ul>`,
+    },
+    {
       id: 'digitar', titulo: 'Digitação e correção manual', para: ['admin'], html: `
       <ul>
         <li><strong>Corrigir dados:</strong> na Conferência de uma igreja. Abre o formulário já preenchido.</li>

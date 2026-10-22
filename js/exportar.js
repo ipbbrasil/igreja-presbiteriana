@@ -32,6 +32,9 @@ window.Exportar = (() => {
   const escopoTxt = (ctx) => (ctx.escopo === 'todos' ? `Todos os relatórios recebidos (${ctx.base.length})` : `Somente relatórios validados (${ctx.base.length} de ${ctx.todos.length})`);
   const nomeArquivo = (ctx, ext) => `estatistica-${ctx.presbiterio?.sigla || 'presbiterio'}-${ctx.ano}-${ctx.escopo === 'todos' ? 'todos' : 'validados'}.${ext}`;
   const agora = () => new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const situacaoTxt = (ctx) => (ctx.exercicio?.situacao === 'fechado'
+    ? `Exercício fechado${ctx.exercicio.fechado_em ? ` em ${new Date(ctx.exercicio.fechado_em).toLocaleDateString('pt-BR')}` : ''} — resultado oficial`
+    : 'Exercício aberto — resultado parcial');
 
   // ---------- Excel ----------
   // Monta uma aba com cabeçalho, uma linha por igreja e, no fim, totais e contagem (fórmulas do Excel)
@@ -65,7 +68,7 @@ window.Exportar = (() => {
 
     const resumo = [
       ['Relatório estatístico'], ['Sínodo', ctx.sinodo?.nome || ''], ['Presbitério', ctx.presbiterio?.nome || ''], ['Exercício', ctx.ano],
-      ['Relatórios considerados', escopoTxt(ctx)], ['Gerado em', agora()], [],
+      ['Relatórios considerados', escopoTxt(ctx)], ['Situação do exercício', situacaoTxt(ctx)], ['Gerado em', agora()],
       ['Indicador', 'Total', 'Igrejas que informaram', 'De', 'Variação no ano', 'Variação %'],
       ...indicadores(base).map((i) => [i.label, i.total, i.n, i.de, i.v ? val(i.v.abs) : null, i.v && i.v.pct != null ? Math.round(i.v.pct * 1000) / 10 : null]),
       [], ['Campos vazios nos relatórios significam "não informado" e não são somados como zero.'],
@@ -107,7 +110,8 @@ window.Exportar = (() => {
     }
 
     X.utils.book_append_sheet(wb, aba(X, ['Igreja', 'Situação', 'Versão', 'Divergências de soma', 'Erros na leitura', 'Avisos na leitura', 'Arquivo', 'Modelo'],
-      ordenar(ctx.todos).map((r) => { const s = situacao(r); return [nome(r), s.status, val(r.versao), s.falhas, s.erros, s.avisos, r.arquivo || '', r.modelo || '']; }),
+      [...ordenar(ctx.todos).map((r) => { const s = situacao(r); return [nome(r), s.status, val(r.versao), s.falhas, s.erros, s.avisos, r.arquivo || '', r.modelo || '']; }),
+        ...(ctx.naoEnviadas || []).map((i) => [i.nome, STATUS.nao_enviado.label, null, null, null, null, '', ''])],
       { totais: false }), 'Situação');
 
     X.writeFile(wb, nomeArquivo(ctx, 'xlsx'));
@@ -137,10 +141,12 @@ window.Exportar = (() => {
     let y = 40;
 
     const validados = ctx.todos.filter((r) => r.status === 'validado').length;
-    if (ctx.escopo === 'todos' || validados < ctx.todos.length) {
+    const cadastradas = ctx.cadastradas || ctx.todos.length, fechado = ctx.exercicio?.situacao === 'fechado';
+    if (ctx.escopo === 'todos' || validados < cadastradas || fechado) {
       const aviso = ctx.escopo === 'todos'
         ? `Inclui relatórios ainda não validados (${ctx.todos.length - validados}). Use apenas para acompanhamento.`
-        : `Resultado parcial: ${validados} de ${ctx.todos.length} relatórios recebidos estão validados. Os totais consideram somente estes.`;
+        : fechado ? `${situacaoTxt(ctx)}: ${validados} de ${cadastradas} igrejas com relatório validado compõem os totais.`
+        : `Resultado parcial: ${validados} de ${cadastradas} igrejas têm relatório validado. Os totais consideram somente estas.`;
       doc.setFillColor(...PAPER).setDrawColor(...GOLD).setLineWidth(0.3).rect(M, y - 4.5, W, 8, 'FD');
       doc.setFontSize(8.5).setTextColor(...NAVY).text(pdfTxt(aviso), M + 3, y + 0.5);
       y += 10;
@@ -181,10 +187,12 @@ window.Exportar = (() => {
     });
 
     const pend = ordenar(ctx.todos.filter((r) => r.status !== 'validado'));
-    if (pend.length) {
-      tabela(`Relatórios pendentes de validação (${pend.length})`, {
+    const faltam = ctx.naoEnviadas || [];
+    if (pend.length || faltam.length) {
+      tabela(`${fechado ? 'Fora do resultado oficial' : 'Relatórios pendentes'} (${pend.length + faltam.length})`, {
         head: [['Igreja', 'Situação', 'Divergências de soma', 'Erros', 'Avisos']],
-        body: pend.map((r) => { const s = situacao(r); return [r.igreja.nome, s.status, s.falhas, s.erros, s.avisos]; }),
+        body: [...pend.map((r) => { const s = situacao(r); return [r.igreja.nome, s.status, s.falhas, s.erros, s.avisos]; }),
+          ...faltam.map((i) => [i.nome, STATUS.nao_enviado.label, '—', '—', '—'])],
         columnStyles: { 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
       });
     }

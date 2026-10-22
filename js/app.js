@@ -260,6 +260,10 @@
     // Cobertura por situação
     const porStatus = {};
     for (const r of todos) porStatus[r.status] = (porStatus[r.status] || 0) + 1;
+    const faltam = Data.naoEnviadas();
+    if (faltam.length) porStatus.nao_enviado = faltam.length;
+    const cadastradas = Math.max(S.cadastradas.length, todos.length);
+    const fechado = Data.exercicioFechado();
     const segs = ORDEM_STATUS.filter((s) => porStatus[s]).map((s) => `<span class="cs-seg st-${STATUS[s].cls}" style="flex:${porStatus[s]}" data-tip="${STATUS[s].label}: ${porStatus[s]}"></span>`).join('');
     const chipsStatus = ORDEM_STATUS.filter((s) => porStatus[s]).map((s) => `<a class="cob-i" href="#/pendencias">${chip(s)}<strong>${porStatus[s]}</strong></a>`).join('');
 
@@ -305,7 +309,7 @@
         <div class="metric-row">
           <div class="metric-pill"><span class="num">${rvc(fmt.int(com.total), 'com')}</span><span class="label">Comungantes</span><span class="d">${dTxt(comV)}</span></div>
           <div class="metric-pill"><span class="num">${rvc(fmt.int(nc.total), 'nc')}</span><span class="label">Não comungantes</span><span class="d">${dTxt(ncV)}</span></div>
-          <div class="metric-pill"><span class="num">${base.length} <small>de ${todos.length}</small></span><span class="label">Igrejas consideradas</span><span class="d">${validados.length} relatórios validados</span></div>
+          <div class="metric-pill"><span class="num">${base.length} <small>de ${cadastradas}</small></span><span class="label">Igrejas consideradas</span><span class="d">${validados.length} validados · ${todos.length} recebidos${faltam.length ? ` · ${faltam.length} ${faltam.length === 1 ? 'não enviou' : 'não enviaram'}` : ''}</span></div>
         </div>
         <div class="seg" role="group" aria-label="Relatórios considerados">
           <button class="${ui.escopo === 'validados' ? 'on' : ''}" data-escopo="validados">Somente validados (${validados.length})</button>
@@ -315,9 +319,10 @@
 
       ${ui.escopo === 'todos'
         ? `<div class="banner warning" role="note"><b>!</b><div><strong>Inclui relatórios não validados.</strong> Use apenas para acompanhamento — ${todos.length - validados.length} relatórios ainda têm pendências.</div></div>`
-        : parcial ? `<div class="banner info" role="note"><b>i</b><div><strong>Resultado parcial:</strong> ${validados.length} de ${todos.length} relatórios recebidos estão validados. Os números abaixo consideram somente estes.</div></div>` : ''}
+        : fechado ? `<div class="banner info" role="note"><b>✓</b><div><strong>Exercício ${S.ano} fechado${S.exercicio.fechado_em ? ` em ${fmt.data(S.exercicio.fechado_em.slice(0, 10))}` : ''} — resultado oficial.</strong> Compõem o resultado ${validados.length} de ${cadastradas} igrejas (relatórios validados)${cadastradas > validados.length ? `; ${cadastradas - validados.length} ficaram de fora` : ''}.</div></div>`
+        : (parcial || faltam.length) ? `<div class="banner info" role="note"><b>i</b><div><strong>Resultado parcial:</strong> ${validados.length} de ${cadastradas} igrejas têm relatório validado${faltam.length ? ` (${faltam.length} ainda não ${faltam.length === 1 ? 'enviou' : 'enviaram'})` : ''}. Os números abaixo consideram somente os validados.</div></div>` : ''}
 
-      ${card('Recebimento dos relatórios', `<div class="cs-bar">${segs}</div><div class="cob">${chipsStatus}</div>`, { sub: `Exercício ${S.ano} · ${todos.length} relatórios recebidos` })}
+      ${card('Recebimento dos relatórios', `<div class="cs-bar">${segs}</div><div class="cob">${chipsStatus}</div>`, { sub: `Exercício ${S.ano} · ${fechado ? 'fechado' : 'aberto'} · ${todos.length} de ${cadastradas} igrejas enviaram` })}
 
       <div class="kpis k4">
         ${kpi('Alunos na Escola Dominical', rvc(fmt.int(ed.total), 'ed'), delta(edV), cobertura(ed))}
@@ -367,7 +372,8 @@
           const html = b.innerHTML;
           b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
           try {
-            await Exportar[b.dataset.exportar]({ base, todos, escopo: ui.escopo, presbiterio: S.presbiterio, sinodo: S.sinodo, ano: S.ano });
+            await Exportar[b.dataset.exportar]({ base, todos, escopo: ui.escopo, presbiterio: S.presbiterio, sinodo: S.sinodo, ano: S.ano,
+              exercicio: S.exercicio, naoEnviadas: Data.naoEnviadas(), cadastradas });
           } catch (e) { toast('Não foi possível exportar: ' + e.message); }
           b.disabled = false; b.innerHTML = html;
         }));
@@ -390,10 +396,16 @@
         <div class="item-n"><strong>${fmt.int(T(r.dados.rol_atual))}</strong><span>membros</span></div>
         ${ic('seta', 'chev')}
       </a>`;
-    }).join('');
+    }).join('') + Data.naoEnviadas().map((i) => `<a class="item" href="#/enviar/${esc(i.codigo)}" data-busca="${esc((i.nome + ' ' + (i.cidade || '') + ' ' + i.codigo).toLowerCase())}">
+        <div class="item-m">
+          <strong>${esc(i.nome)}</strong>
+          <span class="muted">${esc(i.cidade || '')}${i.uf ? ` · ${esc(i.uf)}` : ''}</span>
+          <div class="item-s">${chip('nao_enviado')}<span class="flag">${Data.exercicioFechado() ? 'exercício fechado' : 'toque para enviar pela igreja'}</span></div>
+        </div>${ic('seta', 'chev')}</a>`).join('');
+    const faltam = Data.naoEnviadas().length;
     return {
-      title: 'Igrejas', sub: `${rels.length} relatórios · ${S.ano}`,
-      body: `${Data.podeEnviar() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
+      title: 'Igrejas', sub: `${rels.length} relatórios${faltam ? ` · ${faltam} não enviados` : ''} · ${S.ano}`,
+      body: `${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
         <label class="busca">${ic('busca')}<input type="search" id="q" placeholder="Buscar igreja ou cidade" autocomplete="off"></label>
         <div class="lista" id="lista">${itens}</div><p class="vazio" id="nada" hidden>Nenhuma igreja encontrada.</p>`,
       after: () => {
@@ -426,8 +438,8 @@
           <div class="item-s">${chipEnvio(e.status)}</div>
         </div>
         <div class="env-a">
-          ${e.status === 'recebido' && (e.formato === 'xlsx' || e.tipo_pdf === 'digital') && Data.podeEnviar() ? `<button class="btn" data-ler="${esc(e.id)}">Ler agora</button>` : ''}
-          ${e.status === 'recebido' && !(e.formato === 'pdf' && e.tipo_pdf === 'digital') && Data.podeValidar() ? `<a class="btn" href="#/digitar/${esc(e.id)}">Digitar dados</a>` : ''}
+          ${e.status === 'recebido' && !Data.exercicioFechado() && (e.formato === 'xlsx' || e.tipo_pdf === 'digital') && Data.podeEnviar() ? `<button class="btn" data-ler="${esc(e.id)}">Ler agora</button>` : ''}
+          ${e.status === 'recebido' && !Data.exercicioFechado() && !(e.formato === 'pdf' && e.tipo_pdf === 'digital') && Data.podeValidar() ? `<a class="btn" href="#/digitar/${esc(e.id)}">Digitar dados</a>` : ''}
           <button class="btn ic-btn" data-baixar="${esc(e.caminho)}" aria-label="Baixar ${esc(e.arquivo_nome)}" title="Baixar arquivo original">${ic('baixar')}</button>
         </div>
       </li>`).join('')}</ul>`;
@@ -491,6 +503,7 @@
     const body = `
       <p class="nota top">Envie o relatório estatístico <strong>já preenchido</strong> no modelo oficial, em PDF ou Excel. O sistema confere o arquivo e lê os números automaticamente (PDF digital); a conferência final é feita pela administração do presbitério.</p>
       ${local ? '<div class="banner warning" role="note"><b>!</b><div><strong>Modo local:</strong> a verificação do arquivo funciona, mas o envio só é possível no site publicado.</div></div>' : ''}
+      ${Data.exercicioFechado() ? `<div class="banner warning" role="note"><b>■</b><div><strong>O exercício ${S.ano} está fechado.</strong> Não são aceitos novos relatórios de ${S.ano}. Se for necessário, peça ao administrador do presbitério para reabri-lo.</div></div>` : ''}
       ${card('1. Relatório', `<div class="campos">
           <label class="lbl">Igreja
             ${rep ? `<input type="text" value="${esc(igrejas[0]?.nome || '')}" disabled><input type="hidden" id="env-igreja" value="${esc(sel)}">`
@@ -527,7 +540,8 @@
     const $verif = document.getElementById('verif'), $lista = document.getElementById('verif-l'), $res = document.getElementById('verif-s');
     let analise = null, rodada = 0;
 
-    const atualizarBotao = () => { $btn.disabled = !(analise && !analise.bloqueia && $ig.value && $conf.checked); };
+    const anoFechado = () => Data.exercicioFechado() && +$ano.value === S.ano;
+    const atualizarBotao = () => { $btn.disabled = !(analise && !analise.bloqueia && $ig.value && $conf.checked && !anoFechado()); };
 
     async function analisar() {
       const file = $arq.files[0];
@@ -702,7 +716,7 @@
         <div class="ig-top">${chip(r.status)}<span class="muted">${esc(r.igreja.codigo)}</span></div>
         <p class="muted">${esc(r.igreja.cidade)} · ${esc(r.igreja.uf)} · organizada em ${fmt.data(r.igreja.organizacao)}</p>
         <p class="muted small">${ic('arquivo')} ${esc(r.arquivo)} · ${esc(formatoTxt(r))} · ${esc(r.modelo || 'modelo não identificado')}</p>
-        ${Data.podeEnviar() ? `<a class="btn ig-env" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar novo relatório</a>` : ''}
+        ${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn ig-env" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar novo relatório</a>` : ''}
       </section>
       <nav class="tabs" aria-label="Seções">${abas}</nav>`;
 
@@ -926,7 +940,9 @@
       ? r.alertas.map((a) => `<li class="al al-${a.nivel}"><span class="chip ${a.nivel === 'erro' ? 'critical' : 'warning'}"><b aria-hidden="true">${a.nivel === 'erro' ? '!' : 'i'}</b>${a.nivel === 'erro' ? 'Erro' : 'Aviso'}</span><p>${esc(a.msg)}</p><code>${esc(a.campo)}</code></li>`).join('')
       : '<p class="vazio">Nenhum alerta registrado na leitura do documento.</p>';
     const hist = r.historico.slice().reverse().map((h) => `<li><span>${chip(h.status)}</span><div>${h.comentario ? esc(h.comentario) : ''}<small>${fmt.dataHora(h.criado_em)}</small></div></li>`).join('');
-    const acoes = Data.podeValidar() ? `<section class="card acoes">
+    const acoes = Data.podeValidar() && Data.exercicioFechado()
+      ? `<div class="banner info" role="note"><b>■</b><div><strong>Exercício ${r.ano} fechado.</strong> A situação e os dados deste relatório não podem mais ser alterados. Para mudar algo, reabra o exercício na tela Conferência.</div></div>`
+      : Data.podeValidar() ? `<section class="card acoes">
         <header class="card-h"><h2>Decisão da administração</h2><p>A decisão fica registrada no histórico do relatório.</p></header>
         <label class="lbl">Comentário (obrigatório para solicitar correção)<textarea id="coment" rows="3" placeholder="Ex.: conferir o rol de não comungantes"></textarea></label>
         <div class="btns">
@@ -983,7 +999,73 @@
     const novos = S.envios.filter((e) => e.status === 'recebido' || e.status === 'em_processamento');
     const blocoEnvios = novos.length ? `<section class="grupo"><h2 class="grupo-h">${chipEnvio('recebido')}<span>${novos.length}</span></h2>
         <div class="card">${listaEnvios(novos)}</div></section>` : '';
-    return { title: 'Conferência', sub: `Relatórios ${S.ano}`, body: `<p class="nota top">O sistema recalcula as somas de cada relatório e aponta divergências. A validação final é sempre de um responsável autorizado.</p>${blocoEnvios}${body}` };
+    const faltam = Data.naoEnviadas();
+    const blocoFaltam = faltam.length ? `<section class="grupo"><h2 class="grupo-h">${chip('nao_enviado')}<span>${faltam.length}</span></h2>
+        <div class="lista">${faltam.map((i) => `<a class="item" href="#/enviar/${esc(i.codigo)}"><div class="item-m"><strong>${esc(i.nome)}</strong>
+          <span class="muted">${esc(i.cidade || '')}${i.uf ? ` · ${esc(i.uf)}` : ''} · nenhum relatório recebido</span></div>${ic('seta', 'chev')}</a>`).join('')}</div></section>` : '';
+    return {
+      title: 'Conferência', sub: `Relatórios ${S.ano}`,
+      body: `${quadroExercicio()}<p class="nota top">O sistema recalcula as somas de cada relatório e aponta divergências. A validação final é sempre de um responsável autorizado.</p>${blocoEnvios}${body}${blocoFaltam}`,
+      after: ligarExercicio,
+    };
+  }
+
+  // ---------- Exercício: fechamento oficial ----------
+  function quadroExercicio() {
+    const fechado = Data.exercicioFechado();
+    const todos = S.relatorios, validados = todos.filter((r) => r.status === 'validado').length;
+    const cadastradas = Math.max(S.cadastradas.length, todos.length), faltam = Data.naoEnviadas().length;
+    const eventos = S.eventosExercicio.slice().reverse().map((e) => `<li><span class="chip ${e.acao === 'fechado' ? 'good' : 'warning'}"><b aria-hidden="true">${e.acao === 'fechado' ? '■' : '↺'}</b>${e.acao === 'fechado' ? 'Fechado' : 'Reaberto'}</span>
+      <div>${e.comentario ? esc(e.comentario) : ''}<small>${fmt.dataHora(e.criado_em)}</small></div></li>`).join('');
+    const pode = Data.podeValidar() && S.perfil.papel === 'admin_presbiterial';
+    return `<section class="card exercicio${fechado ? ' fechado' : ''}">
+      <header class="card-h"><h2>Exercício ${S.ano}</h2><p>${fechado
+        ? `<strong>Fechado</strong>${S.exercicio.fechado_em ? ` em ${fmt.dataHora(S.exercicio.fechado_em)}` : ''} — resultado oficial. Envios, correções e mudanças de situação estão travados.`
+        : '<strong>Aberto</strong> — recebendo e conferindo relatórios. O resultado é parcial até o fechamento.'}</p></header>
+      <div class="mini">
+        <div><strong>${cadastradas}</strong><span>Igrejas cadastradas</span></div>
+        <div><strong>${todos.length}</strong><span>Relatórios recebidos</span></div>
+        <div><strong>${validados}</strong><span>Validados</span></div>
+        <div><strong>${todos.length - validados}</strong><span>Pendentes de validação</span></div>
+        <div><strong>${faltam}</strong><span>Não enviados</span></div>
+      </div>
+      ${S.exercicio.comentario && fechado ? `<p class="nota">Comentário do fechamento: ${esc(S.exercicio.comentario)}</p>` : ''}
+      ${pode ? `<div class="btns">${fechado ? '<button class="btn" id="ex-reabrir">Reabrir exercício</button>' : `<button class="btn primary" id="ex-fechar">Fechar exercício ${S.ano}</button>`}</div>` : ''}
+      ${eventos ? `<details class="pv"><summary>Histórico do exercício</summary><div class="pv-c"><ul class="hist">${eventos}</ul></div></details>` : ''}
+    </section>`;
+  }
+
+  function ligarExercicio() {
+    document.getElementById('ex-fechar')?.addEventListener('click', () => {
+      const pend = S.relatorios.filter((r) => r.status !== 'validado'), faltam = Data.naoEnviadas();
+      const validados = S.relatorios.length - pend.length, cadastradas = Math.max(S.cadastradas.length, S.relatorios.length);
+      const el = abrirPainel(`Fechar o exercício ${S.ano}`, `
+        <p>Ao fechar, os números <strong>validados</strong> passam a ser o <strong>resultado oficial</strong> do exercício: ${validados} de ${cadastradas} igrejas.</p>
+        ${pend.length || faltam.length ? `<div class="banner warning" role="note"><b>!</b><div><strong>Ficarão fora do resultado oficial:</strong>
+          <ul>${pend.map((r) => `<li>${esc(r.igreja.nome)} — ${esc(STATUS[r.status].label.toLowerCase())}</li>`).join('')}${faltam.map((i) => `<li>${esc(i.nome)} — não enviou</li>`).join('')}</ul></div></div>`
+          : '<div class="banner info" role="note"><b>✓</b><div><strong>Todas as igrejas estão validadas.</strong></div></div>'}
+        <p>Depois do fechamento, nenhum relatório pode ser enviado, lido, corrigido ou ter a situação alterada. Se necessário, o exercício pode ser reaberto, informando o motivo.</p>
+        <label class="lbl">Comentário (opcional)<textarea id="ex-coment" rows="2" placeholder="Ex.: aprovado na reunião ordinária do presbitério"></textarea></label>
+        <button class="btn primary wide" id="ex-ok">Confirmar fechamento</button>`);
+      el.querySelector('#ex-ok').addEventListener('click', async (e) => {
+        e.target.disabled = true; e.target.innerHTML = '<span class="spin"></span>Fechando…';
+        try { await Data.fecharExercicio(el.querySelector('#ex-coment').value.trim()); fecharPainel(); toast(`Exercício ${S.ano} fechado.`); rota(); }
+        catch (err) { toast(err.message); e.target.disabled = false; e.target.textContent = 'Confirmar fechamento'; }
+      });
+    });
+    document.getElementById('ex-reabrir')?.addEventListener('click', () => {
+      const el = abrirPainel(`Reabrir o exercício ${S.ano}`, `
+        <p>Reabrir permite de novo envios, leituras, correções e mudanças de situação. O resultado volta a ser <strong>parcial</strong> até um novo fechamento.</p>
+        <label class="lbl">Motivo da reabertura (obrigatório)<textarea id="ex-motivo" rows="3" placeholder="Ex.: correção do relatório da IP Central aprovada pelo presbitério"></textarea></label>
+        <button class="btn danger wide" id="ex-ok">Reabrir exercício</button>`);
+      el.querySelector('#ex-ok').addEventListener('click', async (e) => {
+        const motivo = el.querySelector('#ex-motivo').value.trim();
+        if (!motivo) { toast('Informe o motivo da reabertura.'); return; }
+        e.target.disabled = true;
+        try { await Data.reabrirExercicio(motivo); fecharPainel(); toast(`Exercício ${S.ano} reaberto.`); rota(); }
+        catch (err) { toast(err.message); e.target.disabled = false; }
+      });
+    });
   }
 
   // ---------- Sínodo ----------
@@ -1260,12 +1342,12 @@
       case 'enviar': return render(telaEnviar(rep ? S.perfil.igreja_codigo : p1), rep ? 'enviar' : 'igrejas');
       case 'editar': {
         const r = relPorCodigo(p1);
-        if (!r || !Data.podeValidar()) { location.replace('#/'); return; }
+        if (!r || !Data.podeValidar() || Data.exercicioFechado()) { location.replace(r ? `#/igreja/${p1}/conferencia` : '#/'); return; }
         return render(telaEditar({ r }), 'igrejas');
       }
       case 'digitar': {
         const envio = S.envios.find((e) => e.id === p1);
-        if (!envio || !Data.podeValidar()) { location.replace('#/pendencias'); return; }
+        if (!envio || !Data.podeValidar() || Data.exercicioFechado()) { location.replace('#/pendencias'); return; }
         return render(telaEditar({ envio }), 'pendencias');
       }
       case 'sinodo': return render(telaSinodo(), 'sinodo');
