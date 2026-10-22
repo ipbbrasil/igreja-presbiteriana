@@ -15,6 +15,8 @@ window.Data = (() => {
     presbiterio: null,  // { nome, sigla }
     ano: cfg.ANO_PADRAO,
     relatorios: [],
+    envios: [],
+    igrejas: [],        // igrejas que o usuário pode ver (para o envio)
   };
 
   const chaveLocal = 'painel.perfilLocal';
@@ -39,12 +41,12 @@ window.Data = (() => {
 
   async function carregarPerfil(user) {
     const { data, error } = await sb.from('perfis')
-      .select('nome, papel, igrejas(codigo), presbiterios(nome, sigla, sinodos(nome, sigla)), sinodos(nome, sigla)')
+      .select('nome, papel, igrejas(codigo, nome, cidade, uf), presbiterios(nome, sigla, sinodos(nome, sigla)), sinodos(nome, sigla)')
       .eq('user_id', user.id).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Seu usuário ainda não tem um perfil de acesso. Peça ao administrador para cadastrá-lo.');
     state.usuario = { email: user.email, nome: data.nome || user.email };
-    state.perfil = { papel: data.papel, igreja_codigo: data.igrejas?.codigo || null };
+    state.perfil = { papel: data.papel, igreja_codigo: data.igrejas?.codigo || null, igreja: data.igrejas || null };
     return true;
   }
 
@@ -86,6 +88,16 @@ window.Data = (() => {
     }));
     const p = data[0]?.presbiterios;
     if (p) { state.presbiterio = { nome: p.nome, sigla: p.sigla }; state.sinodo = p.sinodos; }
+    state.igrejas = state.perfil.igreja ? [state.perfil.igreja] : state.relatorios.map((r) => r.igreja);
+    await carregarEnvios();
+  }
+
+  async function carregarEnvios() {
+    const { data, error } = await sb.from('envios')
+      .select('id, ano, arquivo_nome, caminho, formato, tipo_pdf, tamanho, status, verificacao, enviado_em, igrejas(codigo, nome)')
+      .order('enviado_em', { ascending: false });
+    // Tabela ainda não criada (migração 002 não executada): segue sem envios
+    state.envios = error ? [] : data;
   }
 
   async function carregarLocal() {
@@ -108,6 +120,40 @@ window.Data = (() => {
     });
     if (state.perfil?.papel === 'representante') rels = rels.filter((r) => r.igreja.codigo === state.perfil.igreja_codigo);
     state.relatorios = rels;
+    state.igrejas = rels.map((r) => r.igreja);
+    state.envios = [];
+  }
+
+  // ---------- Envio de relatórios ----------
+  async function envioExiste(codigo, ano, hash) {
+    if (state.modo === 'local') return false;
+    const { data } = await sb.from('envios').select('id, enviado_em, igrejas!inner(codigo)')
+      .eq('sha256', hash).eq('ano', ano).eq('igrejas.codigo', codigo).limit(1);
+    return data?.[0] || false;
+  }
+
+  async function enviarRelatorio({ codigo, ano, file, analise }) {
+    if (state.modo === 'local') throw new Error('O envio de arquivos só funciona conectado ao Supabase (site publicado).');
+    const caminho = `${codigo}/${ano}/${Date.now()}-${Envio.nomeSeguro(file.name)}`;
+    const mime = analise.formato === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const up = await sb.storage.from('relatorios').upload(caminho, file, { contentType: mime, upsert: false });
+    if (up.error) throw new Error('Falha no upload: ' + up.error.message);
+    const { error } = await sb.rpc('registrar_envio', {
+      p_igreja: codigo, p_ano: ano, p_caminho: caminho, p_nome: file.name, p_formato: analise.formato,
+      p_tipo_pdf: analise.tipo_pdf, p_tamanho: file.size, p_sha256: analise.sha256,
+      p_verificacao: { checks: analise.checks, resumo: analise.resumo },
+    });
+    if (error) {
+      await sb.storage.from('relatorios').remove([caminho]); // não deixa arquivo órfão
+      throw new Error(error.message);
+    }
+    await carregarEnvios();
+  }
+
+  async function urlArquivo(caminho) {
+    const { data, error } = await sb.storage.from('relatorios').createSignedUrl(caminho, 600);
+    if (error) throw error;
+    return data.signedUrl;
   }
 
   // ---------- Ações ----------
@@ -124,6 +170,10 @@ window.Data = (() => {
   }
 
   const podeValidar = () => ['admin_presbiterial', 'superadmin'].includes(state.perfil?.papel);
+  const podeEnviar = () => ['admin_presbiterial', 'superadmin', 'representante'].includes(state.perfil?.papel);
 
-  return { state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar };
+  return {
+    state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
+    envioExiste, enviarRelatorio, urlArquivo,
+  };
 })();

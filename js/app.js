@@ -17,6 +17,8 @@
     seta: '<path d="M9 5l7 7-7 7"/>',
     arquivo: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/>',
     busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+    enviar: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
+    baixar: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
   };
   const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
@@ -58,6 +60,7 @@
     if (p === 'representante') {
       return [
         { id: 'igreja', href: `#/igreja/${S.perfil.igreja_codigo}`, label: 'Minha igreja', icon: 'igrejas' },
+        { id: 'enviar', href: '#/enviar', label: 'Enviar', icon: 'enviar' },
         { id: 'perfil', href: '#/perfil', label: 'Perfil', icon: 'perfil' },
       ];
     }
@@ -77,7 +80,7 @@
         <span class="nav-ic">${ic(i.icon)}${i.badge ? `<span class="badge">${i.badge}</span>` : ''}</span><span class="nav-l">${i.label}</span></a>`).join('');
     $app.innerHTML = `<div class="shell">
       <nav class="nav" aria-label="Navegação principal">
-        <div class="brand"><img src="icons/icon.svg" alt=""><div><strong>Painel Estatístico</strong><small>${esc(S.presbiterio?.sigla || '')} · ${S.ano}</small></div></div>
+        <div class="brand"><img src="icons/logo_ipb.png" alt="Igreja Presbiteriana do Brasil"><small>Estatística · ${esc(S.presbiterio?.sigla || '')} ${S.ano}</small></div>
         ${nav}
       </nav>
       <header class="appbar">
@@ -97,8 +100,7 @@
   function telaLogin(erro = '') {
     const local = S.modo === 'local';
     renderSimples(`<div class="login">
-      <img class="login-logo" src="icons/icon.svg" alt="">
-      <h1>Painel Estatístico</h1>
+      <h1 class="login-logo"><img src="icons/logo_ipb.png" alt="Igreja Presbiteriana do Brasil"></h1>
       <p class="muted">Relatórios estatísticos das igrejas, consolidados por presbitério e sínodo.</p>
       ${erro ? `<p class="erro" role="alert">${esc(erro)}</p>` : ''}
       ${local ? `
@@ -248,7 +250,8 @@
     }).join('');
     return {
       title: 'Igrejas', sub: `${rels.length} relatórios · ${S.ano}`,
-      body: `<label class="busca">${ic('busca')}<input type="search" id="q" placeholder="Buscar igreja ou cidade" autocomplete="off"></label>
+      body: `${Data.podeEnviar() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
+        <label class="busca">${ic('busca')}<input type="search" id="q" placeholder="Buscar igreja ou cidade" autocomplete="off"></label>
         <div class="lista" id="lista">${itens}</div><p class="vazio" id="nada" hidden>Nenhuma igreja encontrada.</p>`,
       after: () => {
         const q = document.getElementById('q');
@@ -261,8 +264,130 @@
     };
   }
 
+  // ---------- Envio de relatório ----------
+  const STATUS_ENVIO = {
+    recebido: { label: 'Recebido · aguardando leitura', cls: 'warning', icon: '↓' },
+    em_processamento: { label: 'Em processamento', cls: 'warning', icon: '⋯' },
+    processado: { label: 'Processado', cls: 'good', icon: '✓' },
+    rejeitado: { label: 'Rejeitado', cls: 'critical', icon: '!' },
+  };
+  const chipEnvio = (s) => { const x = STATUS_ENVIO[s] || STATUS_ENVIO.recebido; return `<span class="chip ${x.cls}"><b aria-hidden="true">${x.icon}</b>${x.label}</span>`; };
+  const tamanho = (b) => (b >= 1048576 ? (b / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+
+  function listaEnvios(envios, { igreja = true } = {}) {
+    if (!envios.length) return '<p class="vazio">Nenhum arquivo enviado ainda.</p>';
+    return `<ul class="envios">${envios.map((e) => `<li>
+        <div class="env-m">
+          <strong>${esc(e.arquivo_nome)}</strong>
+          <span class="muted small">${igreja ? `${esc(e.igrejas?.nome || '')} · ` : ''}Exercício ${e.ano} · ${e.formato.toUpperCase()}${e.tipo_pdf ? ` ${esc(e.tipo_pdf)}` : ''} · ${tamanho(e.tamanho || 0)} · ${fmt.dataHora(e.enviado_em)}</span>
+          <div class="item-s">${chipEnvio(e.status)}</div>
+        </div>
+        <button class="btn ic-btn" data-baixar="${esc(e.caminho)}" aria-label="Baixar ${esc(e.arquivo_nome)}" title="Baixar arquivo original">${ic('baixar')}</button>
+      </li>`).join('')}</ul>`;
+  }
+
+  function checksHtml(checks) {
+    const cls = { ok: 'ok', aviso: 'aviso', erro: 'falha' };
+    const sim = { ok: '✓', aviso: '!', erro: '✕' };
+    return `<ul class="vfs">${checks.map((c) => `<li class="vf ${cls[c.estado]}"><b aria-hidden="true">${sim[c.estado]}</b>
+      <div><span>${esc(c.titulo)}</span>${c.detalhe ? `<small>${esc(c.detalhe)}</small>` : ''}</div></li>`).join('')}</ul>`;
+  }
+
+  function telaEnviar(cod) {
+    const rep = S.perfil.papel === 'representante';
+    const igrejas = [...S.igrejas].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const sel = igrejas.find((i) => i.codigo === cod) ? cod : (rep ? S.perfil.igreja_codigo : '');
+    const anos = [S.ano + 1, S.ano, S.ano - 1];
+    const envios = S.envios.filter((e) => !sel || e.igrejas?.codigo === sel);
+    const local = S.modo === 'local';
+
+    const body = `
+      <p class="nota top">Envie o relatório estatístico <strong>já preenchido</strong> no modelo oficial, em PDF ou Excel. O sistema confere o arquivo antes do envio; os números são lidos e conferidos depois, pela administração do presbitério.</p>
+      ${local ? '<div class="banner warning" role="note"><b>!</b><div><strong>Modo local:</strong> a verificação do arquivo funciona, mas o envio só é possível no site publicado.</div></div>' : ''}
+      ${card('1. Relatório', `<div class="campos">
+          <label class="lbl">Igreja
+            ${rep ? `<input type="text" value="${esc(igrejas[0]?.nome || '')}" disabled><input type="hidden" id="env-igreja" value="${esc(sel)}">`
+              : `<select id="env-igreja"><option value="">Selecione a igreja…</option>${igrejas.map((i) => `<option value="${esc(i.codigo)}"${i.codigo === sel ? ' selected' : ''}>${esc(i.nome)}</option>`).join('')}</select>`}
+          </label>
+          <label class="lbl">Exercício
+            <select id="env-ano">${anos.map((a) => `<option${a === S.ano ? ' selected' : ''}>${a}</option>`).join('')}</select>
+          </label>
+        </div>`)}
+      ${card('2. Arquivo', `<label class="drop" id="drop">
+          <input type="file" id="env-arq" accept=".pdf,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          ${ic('enviar')}<strong id="drop-t">Escolher arquivo</strong><span class="muted small" id="drop-s">PDF ou Excel (.xlsx) · até 10 MB</span>
+        </label>`)}
+      <section class="card" id="verif" hidden>
+        <header class="card-h"><h2>3. Verificação</h2><p id="verif-s">Analisando o arquivo…</p></header>
+        <div id="verif-l"></div>
+        <label class="conf"><input type="checkbox" id="env-conf"> Confirmo que este é o relatório oficial aprovado pelo Conselho da igreja.</label>
+        <button class="btn primary wide" id="env-btn" disabled>${ic('enviar')}Enviar relatório</button>
+      </section>
+      ${card('Envios anteriores', listaEnvios(envios, { igreja: !sel }), { sub: sel ? esc(igrejas.find((i) => i.codigo === sel)?.nome || '') : 'Todas as igrejas' })}`;
+
+    return {
+      title: 'Enviar relatório', sub: rep ? esc(igrejas[0]?.nome || '') : `${esc(S.presbiterio?.sigla || '')} · envio de relatórios`,
+      back: rep ? null : (sel ? `#/igreja/${sel}` : '#/igrejas'),
+      body,
+      after: () => ligarEnvio(),
+    };
+  }
+
+  function ligarEnvio() {
+    const $ig = document.getElementById('env-igreja'), $ano = document.getElementById('env-ano');
+    const $arq = document.getElementById('env-arq'), $conf = document.getElementById('env-conf'), $btn = document.getElementById('env-btn');
+    const $verif = document.getElementById('verif'), $lista = document.getElementById('verif-l'), $res = document.getElementById('verif-s');
+    let analise = null, rodada = 0;
+
+    const atualizarBotao = () => { $btn.disabled = !(analise && !analise.bloqueia && $ig.value && $conf.checked); };
+
+    async function analisar() {
+      const file = $arq.files[0];
+      if (!file) return;
+      document.getElementById('drop-t').textContent = file.name;
+      document.getElementById('drop-s').textContent = tamanho(file.size) + ' · toque para trocar';
+      $verif.hidden = false; $lista.innerHTML = '<div class="carregando dark"><span class="spin"></span>Analisando…</div>'; $res.textContent = 'Analisando o arquivo…';
+      analise = null; atualizarBotao();
+      const minha = ++rodada;
+      const igreja = S.igrejas.find((i) => i.codigo === $ig.value) || { nome: '' };
+      try {
+        const a = await Envio.analisar(file, { igreja, ano: +$ano.value });
+        if (minha !== rodada) return;
+        if (!$ig.value) { a.checks.unshift({ estado: 'erro', titulo: 'Igreja', detalhe: 'Selecione a igreja do relatório.' }); }
+        if (a.sha256 && $ig.value) {
+          const dup = await Data.envioExiste($ig.value, +$ano.value, a.sha256);
+          if (dup) { a.checks.push({ estado: 'erro', titulo: 'Arquivo já enviado', detalhe: `Este mesmo arquivo foi enviado em ${fmt.dataHora(dup.enviado_em)}.` }); a.bloqueia = true; }
+          else a.checks.push({ estado: 'ok', titulo: 'Arquivo novo', detalhe: 'Nenhum envio idêntico para esta igreja e exercício.' });
+        }
+        analise = a;
+        const erros = a.checks.filter((c) => c.estado === 'erro').length, avisos = a.checks.filter((c) => c.estado === 'aviso').length;
+        $res.textContent = erros ? `${erros} problema(s) impedem o envio` : avisos ? `Pode enviar · ${avisos} aviso(s) para a conferência` : 'Tudo certo para enviar';
+        $lista.innerHTML = checksHtml(a.checks);
+      } catch (e) {
+        $lista.innerHTML = `<p class="erro">Não foi possível analisar: ${esc(e.message)}</p>`;
+      }
+      atualizarBotao();
+    }
+
+    $arq.addEventListener('change', analisar);
+    $ig.addEventListener?.('change', analisar);
+    $ano.addEventListener('change', analisar);
+    $conf.addEventListener('change', atualizarBotao);
+    $btn.addEventListener('click', async () => {
+      if (!analise || analise.bloqueia) return;
+      $btn.disabled = true; $btn.innerHTML = '<span class="spin"></span>Enviando…';
+      try {
+        await Data.enviarRelatorio({ codigo: $ig.value, ano: +$ano.value, file: $arq.files[0], analise });
+        toast('Relatório enviado. A administração fará a conferência.');
+        rota();
+      } catch (e) {
+        toast(e.message); $btn.innerHTML = `${ic('enviar')}Enviar relatório`; atualizarBotao();
+      }
+    });
+  }
+
   // ---------- Igreja ----------
-  const ABAS = [['geral', 'Visão geral'], ['membresia', 'Membresia'], ['educacao', 'Educação'], ['financas', 'Finanças'], ['conferencia', 'Conferência']];
+  const ABAS =[['geral', 'Visão geral'], ['membresia', 'Membresia'], ['educacao', 'Educação'], ['financas', 'Finanças'], ['conferencia', 'Conferência']];
 
   function telaIgreja(cod, aba = 'geral') {
     const r = relPorCodigo(cod);
@@ -338,6 +463,7 @@
         <div class="ig-top">${chip(r.status)}<span class="muted">${esc(r.igreja.codigo)}</span></div>
         <p class="muted">${esc(r.igreja.cidade)} · ${esc(r.igreja.uf)} · organizada em ${fmt.data(r.igreja.organizacao)}</p>
         <p class="muted small">${ic('arquivo')} ${esc(r.arquivo)} · PDF ${esc(r.tipo_pdf)} · ${esc(r.modelo)}</p>
+        ${Data.podeEnviar() ? `<a class="btn ig-env" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar novo relatório</a>` : ''}
       </section>
       <nav class="tabs" aria-label="Seções">${abas}</nav>`;
 
@@ -425,6 +551,7 @@
           <dt>Página 2</dt><dd>IV Informações financeiras · VI Informações finais</dd>
           <dt>Extração</dt><dd>${r.extraido_em ? fmt.dataHora(r.extraido_em) : 'importação inicial'}</dd>
         </dl>`)}
+      ${card('Arquivos enviados pelo site', listaEnvios(S.envios.filter((e) => e.igrejas?.codigo === r.igreja.codigo), { igreja: false }))}
       ${card('Histórico', `<ul class="hist">${hist}</ul>`)}`;
   }
 
@@ -454,7 +581,10 @@
                 ${r.tipo_pdf === 'digitalizado' ? '<span class="flag">PDF digitalizado</span>' : ''}
               </div></div>${ic('seta', 'chev')}</a>`;
         }).join('')}</div></section>`).join('');
-    return { title: 'Conferência', sub: `Relatórios ${S.ano}`, body: `<p class="nota top">O sistema recalcula as somas de cada relatório e aponta divergências. A validação final é sempre de um responsável autorizado.</p>${body}` };
+    const novos = S.envios.filter((e) => e.status === 'recebido' || e.status === 'em_processamento');
+    const blocoEnvios = novos.length ? `<section class="grupo"><h2 class="grupo-h">${chipEnvio('recebido')}<span>${novos.length}</span></h2>
+        <div class="card">${listaEnvios(novos)}</div></section>` : '';
+    return { title: 'Conferência', sub: `Relatórios ${S.ano}`, body: `<p class="nota top">O sistema recalcula as somas de cada relatório e aponta divergências. A validação final é sempre de um responsável autorizado.</p>${blocoEnvios}${body}` };
   }
 
   // ---------- Sínodo ----------
@@ -525,13 +655,14 @@
     }
     const [p0 = '', p1, p2] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     const rep = S.perfil.papel === 'representante';
-    if (rep && !(p0 === 'igreja' || p0 === 'perfil')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
+    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     if (p0 === 'igreja' && rep && p1 !== S.perfil.igreja_codigo) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     switch (p0) {
       case '': return render(telaPresbiterio(), 'inicio');
       case 'igrejas': return render(telaIgrejas(), 'igrejas');
       case 'igreja': return render(telaIgreja(p1, p2), rep ? 'igreja' : 'igrejas');
       case 'pendencias': return render(telaPendencias(), 'pendencias');
+      case 'enviar': return render(telaEnviar(rep ? S.perfil.igreja_codigo : p1), rep ? 'enviar' : 'igrejas');
       case 'sinodo': return render(telaSinodo(), 'sinodo');
       case 'perfil': return render(telaPerfil(), 'perfil');
       default: location.replace('#/');
@@ -540,6 +671,14 @@
 
   window.addEventListener('hashchange', rota);
   Charts.ligarTooltip();
+  // Baixar arquivo original (link assinado, válido por 10 minutos)
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-baixar]');
+    if (!b) return;
+    if (S.modo === 'local') { toast('Disponível apenas no site publicado.'); return; }
+    const janela = window.open('', '_blank');
+    try { janela.location = await Data.urlArquivo(b.dataset.baixar); } catch (err) { janela?.close(); toast('Não foi possível abrir o arquivo: ' + err.message); }
+  });
   rota();
 
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
