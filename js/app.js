@@ -716,7 +716,10 @@
         <div class="ig-top">${chip(r.status)}<span class="muted">${esc(r.igreja.codigo)}</span></div>
         <p class="muted">${esc(r.igreja.cidade)} · ${esc(r.igreja.uf)} · organizada em ${fmt.data(r.igreja.organizacao)}</p>
         <p class="muted small">${ic('arquivo')} ${esc(r.arquivo)} · ${esc(formatoTxt(r))} · ${esc(r.modelo || 'modelo não identificado')}</p>
-        ${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn ig-env" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar novo relatório</a>` : ''}
+        <div class="btns ig-acoes">
+          ${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar novo relatório</a>` : ''}
+          <button class="btn" id="pdf-igreja">${ic('baixar')}Relatório em PDF</button>
+        </div>
       </section>
       <nav class="tabs" aria-label="Seções">${abas}</nav>`;
 
@@ -724,7 +727,17 @@
       title: esc(r.igreja.nome), sub: `Relatório ${r.ano}`,
       back: S.perfil.papel === 'representante' ? null : '#/igrejas',
       body: head + corpo,
-      after: () => ligarConferencia(r),
+      after: () => {
+        ligarConferencia(r);
+        const b = document.getElementById('pdf-igreja');
+        b.addEventListener('click', async () => {
+          const html = b.innerHTML;
+          b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
+          try { await Exportar.pdfIgreja(r, { presbiterio: S.presbiterio, sinodo: S.sinodo, exercicio: S.exercicio }); }
+          catch (e) { toast('Não foi possível gerar o PDF: ' + e.message); }
+          b.disabled = false; b.innerHTML = html;
+        });
+      },
     };
   }
 

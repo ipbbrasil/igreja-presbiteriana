@@ -78,6 +78,7 @@ window.Ajuda = (() => {
         <li><strong>Ministério:</strong> vida ministerial e administração (Santa Ceia, evangelização, textos distribuídos, discipulados, ação social, visitas, reuniões, mandatos, reformas e planejamento). Só aparece quando o relatório foi enviado em Excel com a aba “Conselho ou Mesa” preenchida.</li>
         <li><strong>Conferência:</strong> verificações de soma, alertas da leitura, origem dos dados, arquivos enviados e histórico. O número na aba indica pendências.</li>
       </ul>
+      <p><strong>Relatório em PDF:</strong> o botão no topo da página da igreja gera um PDF com identificação, membresia e movimentação, liderança, Escola Dominical, departamentos, finanças (realizado × previsto), vida ministerial (quando houver), as 14 verificações e os alertas da leitura. Indica se o relatório está validado. Disponível para o administrador e para o representante da igreja.</p>
       <p class="nota">Em todas as tabelas, “—” significa <em>não informado</em> e 0 significa <em>informado como zero</em>.</p>`,
     },
     {

@@ -428,7 +428,7 @@ details.aj[open] summary { border-bottom: 1px solid var(--line); }
   padding: 10px 14px; background: var(--paper-raise); border: 1px solid var(--line); border-top: 3px solid var(--gold); font-size: 13.5px; color: var(--ink-2); }
 .ed-err { color: var(--critical-ink); }
 @media (min-width: 900px) { .ed-bar { top: 0; } }
-.ig-env { margin-top: 12px; }
+.ig-acoes { margin-top: 12px; }
 
 /* Perfil */
 .perfil { display: flex; align-items: center; gap: 14px; }
