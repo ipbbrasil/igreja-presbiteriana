@@ -788,6 +788,134 @@
     };
   }
 
+  // ---------- Usuários e convites ----------
+  const PAPEL_CONVITE = { representante: 'Representante de igreja', admin_presbiterial: 'Administrador do presbitério' };
+  const linkConvite = (codigo) => `${location.origin}${location.pathname}#/convite/${codigo}`;
+  const textoConvite = (c) => `Olá${c.nome ? `, ${c.nome}` : ''}! Você recebeu um convite para acessar o sistema de estatística da Igreja Presbiteriana do Brasil (${S.presbiterio?.sigla || ''}) como ${(PAPEL_CONVITE[c.papel] || '').toLowerCase()}${c.igreja ? ` da ${c.igreja}` : ''}. Abra o link para criar sua senha: ${linkConvite(c.codigo)}`;
+  const botoesConvite = (c) => `<button class="btn" data-copiar="${esc(linkConvite(c.codigo))}">Copiar link</button>
+    <a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(textoConvite(c))}">WhatsApp</a>`;
+  async function copiar(txt) {
+    try { await navigator.clipboard.writeText(txt); toast('Link copiado.'); } catch (e) { window.prompt('Copie o link:', txt); }
+  }
+
+  function telaUsuarios() {
+    const igrejas = [...S.igrejas].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const body = S.modo === 'local' ? card('', '<p>O cadastro de usuários funciona apenas no site publicado.</p>') : `
+      <p class="nota top">Convide pelo link: a pessoa abre, cria a própria senha e já entra com o acesso certo. Envie o link por WhatsApp ou e-mail. Cada convite vale por 14 dias e só pode ser usado com o e-mail cadastrado.</p>
+      ${card('Convidar usuário', `<form id="f-conv" class="campos conv">
+          <label class="lbl">Nome<input type="text" name="nome" autocomplete="off" placeholder="Ex.: Pb. João da Silva"></label>
+          <label class="lbl">E-mail<input type="email" name="email" required autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email"></label>
+          <label class="lbl">Acesso<select name="papel" id="conv-papel">${Object.entries(PAPEL_CONVITE).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+          <label class="lbl" id="conv-ig">Igreja<select name="igreja"><option value="">Selecione a igreja…</option>${igrejas.map((i) => `<option value="${esc(i.codigo)}">${esc(i.nome)}</option>`).join('')}</select></label>
+          <button class="btn primary" type="submit">Criar convite</button>
+        </form><div id="conv-ok"></div>`, { sub: 'Representante vê e envia só a própria igreja; administrador vê o presbitério inteiro e valida relatórios' })}
+      <section class="card"><header class="card-h"><h2>Convites pendentes</h2></header><div id="l-conv"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>
+      <section class="card"><header class="card-h"><h2>Usuários com acesso</h2></header><div id="l-usu"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>`;
+
+    async function carregarListas() {
+      try {
+        const convites = await Data.listarConvites();
+        document.getElementById('l-conv').innerHTML = convites.length ? `<ul class="envios">${convites.map((c) => {
+          const cv = { ...c, igreja: c.igrejas?.nome };
+          const expirado = new Date(c.expira_em) < new Date();
+          return `<li><div class="env-m"><strong>${esc(c.nome || c.email)}</strong>
+              <span class="muted small">${esc(c.email)} · ${PAPEL_CONVITE[c.papel]}${c.igrejas ? ` · ${esc(c.igrejas.nome)}` : ''}</span>
+              <div class="item-s"><span class="flag${expirado ? ' crit' : ''}">${expirado ? 'expirado' : `vale até ${fmt.data(c.expira_em.slice(0, 10))}`}</span></div>
+              <div class="btns">${expirado ? '' : botoesConvite(cv)}<button class="btn danger" data-cancelar="${esc(c.id)}">Cancelar</button></div></div></li>`;
+        }).join('')}</ul>` : '<p class="vazio">Nenhum convite pendente.</p>';
+      } catch (e) { document.getElementById('l-conv').innerHTML = `<p class="erro">${esc(e.message)}</p>`; }
+      try {
+        const usuarios = await Data.listarUsuarios();
+        document.getElementById('l-usu').innerHTML = usuarios.length ? `<ul class="envios">${usuarios.map((u) => `<li>
+            <div class="env-m"><strong>${esc(u.nome || u.email)}</strong>
+              <span class="muted small">${esc(u.email)} · ${PAPEIS[u.papel] || u.papel}${u.igreja_nome ? ` · ${esc(u.igreja_nome)}` : ''}</span>
+              <span class="muted small">Último acesso: ${u.ultimo_acesso ? fmt.dataHora(u.ultimo_acesso) : 'nunca'}</span></div>
+            ${u.email === S.usuario.email ? '<span class="flag">você</span>' : `<button class="btn danger" data-remover="${esc(u.user_id)}" data-nome="${esc(u.nome || u.email)}">Remover</button>`}
+          </li>`).join('')}</ul>` : '<p class="vazio">Nenhum usuário.</p>';
+      } catch (e) { document.getElementById('l-usu').innerHTML = `<p class="erro">${esc(e.message)}</p>`; }
+    }
+
+    return {
+      title: 'Usuários e convites', sub: esc(S.presbiterio?.nome || ''), back: '#/perfil', body,
+      after: () => {
+        if (S.modo === 'local') return;
+        const $f = document.getElementById('f-conv'), $papel = document.getElementById('conv-papel'), $ig = document.getElementById('conv-ig');
+        const ajustar = () => { $ig.hidden = $papel.value !== 'representante'; };
+        $papel.addEventListener('change', ajustar); ajustar();
+        $f.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const f = new FormData($f), btn = $f.querySelector('button[type=submit]');
+          const dados = { nome: String(f.get('nome') || '').trim(), email: String(f.get('email') || '').trim().toLowerCase(), papel: f.get('papel'), igreja: f.get('igreja') };
+          if (dados.papel === 'representante' && !dados.igreja) { toast('Selecione a igreja.'); return; }
+          btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Criando…';
+          try {
+            const codigo = await Data.criarConvite(dados);
+            const cv = { ...dados, codigo, igreja: igrejas.find((i) => i.codigo === dados.igreja)?.nome };
+            document.getElementById('conv-ok').innerHTML = `<div class="banner info conv-ok" role="status"><b>✓</b><div><strong>Convite criado para ${esc(dados.email)}.</strong>
+              Envie o link abaixo para a pessoa:<code class="link">${esc(linkConvite(codigo))}</code><div class="btns">${botoesConvite(cv)}</div></div></div>`;
+            $f.reset(); ajustar();
+            carregarListas();
+          } catch (err) { toast(err.message); }
+          btn.disabled = false; btn.textContent = 'Criar convite';
+        });
+        $app.querySelector('.content').addEventListener('click', async (e) => {
+          const cp = e.target.closest('[data-copiar]'), ca = e.target.closest('[data-cancelar]'), rm = e.target.closest('[data-remover]');
+          if (cp) copiar(cp.dataset.copiar);
+          if (ca) { try { await Data.cancelarConvite(ca.dataset.cancelar); toast('Convite cancelado.'); carregarListas(); } catch (err) { toast(err.message); } }
+          if (rm && window.confirm(`Remover o acesso de ${rm.dataset.nome}? A pessoa não verá mais nenhum dado.`)) {
+            try { await Data.removerAcesso(rm.dataset.remover); toast('Acesso removido.'); carregarListas(); } catch (err) { toast(err.message); }
+          }
+        });
+        carregarListas();
+      },
+    };
+  }
+
+  // Página aberta pela pessoa convidada (funciona sem estar logada)
+  async function telaConvite(codigo) {
+    if (S.modo === 'local') return renderSimples('<div class="login"><p>Convites funcionam apenas no site publicado.</p></div>');
+    renderSimples('<div class="carregando"><span class="spin"></span>Abrindo convite…</div>');
+    let c;
+    try { c = await Data.verConvite(codigo); } catch (e) { c = null; }
+    const topo = '<h1 class="login-logo"><img src="icons/logo_ipb.png" alt="Igreja Presbiteriana do Brasil"></h1>';
+    if (!c || c.situacao !== 'valido') {
+      const msg = !c ? 'Convite não encontrado. Confira se o link está completo.' : c.situacao === 'usado' ? 'Este convite já foi usado. Entre com seu e-mail e senha.' : 'Este convite expirou. Peça um novo ao administrador do presbitério.';
+      return renderSimples(`<div class="login">${topo}<p class="erro">${msg}</p><a class="btn primary" href="#/">Ir para o login</a></div>`);
+    }
+    let novaConta = true;
+    const desenhar = (erro = '') => {
+      renderSimples(`<div class="login">${topo}
+        <h2 class="login-t">Convite de acesso</h2>
+        <p class="muted">Você recebeu um convite de acesso como <strong>${esc(PAPEL_CONVITE[c.papel])}</strong>${c.igreja ? ` da <strong>${esc(c.igreja)}</strong>` : ''} — ${esc(c.presbiterio)}.</p>
+        ${erro ? `<p class="erro" role="alert">${esc(erro)}</p>` : ''}
+        <form id="f-convite" class="form">
+          ${novaConta ? `<label>Seu nome<input type="text" name="nome" value="${esc(c.nome || '')}" autocomplete="name"></label>` : ''}
+          <label>E-mail<input type="email" name="email" value="${esc(c.email)}" readonly></label>
+          <label>${novaConta ? 'Crie uma senha (mínimo 8 caracteres)' : 'Sua senha'}<input type="password" name="senha" id="senha" minlength="${novaConta ? 8 : 1}" autocomplete="${novaConta ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
+          ${novaConta ? '<label>Repita a senha<input type="password" name="senha2" id="senha2" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>' : ''}
+          <label class="conf"><input type="checkbox" id="ver-senha"> Mostrar senha</label>
+          <button class="btn primary" type="submit">${novaConta ? 'Criar conta e entrar' : 'Entrar e aceitar convite'}</button>
+        </form>
+        <button class="btn" id="alternar">${novaConta ? 'Já tenho conta com este e-mail' : 'Ainda não tenho conta'}</button>
+      </div>`);
+      document.getElementById('alternar').addEventListener('click', () => { novaConta = !novaConta; desenhar(); });
+      document.getElementById('ver-senha').addEventListener('change', (e) => { ['senha', 'senha2'].forEach((id) => { const el = document.getElementById(id); if (el) el.type = e.target.checked ? 'text' : 'password'; }); });
+      document.getElementById('f-convite').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const f = new FormData(e.target);
+        if (novaConta && f.get('senha') !== f.get('senha2')) { desenhar('As duas senhas não são iguais.'); return; }
+        const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Entrando…';
+        try {
+          await Data.usarConvite({ codigo, email: c.email, senha: f.get('senha'), nome: String(f.get('nome') || '').trim(), novaConta });
+          iniciou = true; ui.carregado = false;
+          toast('Bem-vindo! Seu acesso está pronto.');
+          location.hash = '#/';
+        } catch (err) { desenhar(err.message); }
+      });
+    };
+    desenhar();
+  }
+
   // ---------- Perfil ----------
   function telaPerfil() {
     const local = S.modo === 'local';
@@ -797,6 +925,8 @@
           <div class="avatar">${ic('perfil')}</div>
           <div><strong>${esc(S.usuario?.nome || '')}</strong><span class="muted">${PAPEIS[S.perfil.papel] || S.perfil.papel}</span>
           ${S.perfil.igreja_codigo ? `<span class="muted">Igreja: ${esc(relPorCodigo(S.perfil.igreja_codigo)?.igreja.nome || S.perfil.igreja_codigo)}</span>` : ''}</div></div>`)}
+        ${S.perfil.papel === 'admin_presbiterial' ? `<div class="lista"><a class="item" href="#/usuarios">
+            <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a></div>` : ''}
         ${local ? card('Simular outro perfil', `<div class="perfis">
             ${['admin_presbiterial', 'admin_sinodal', 'representante'].map((p) => `<button class="btn${S.perfil.papel === p ? ' primary' : ''}" data-papel="${p}">${PAPEIS[p]}</button>`).join('')}
           </div>`, { sub: 'Disponível apenas no modo local' }) : ''}
@@ -819,6 +949,9 @@
   // ---------- Roteador ----------
   let iniciou = false;
   async function rota() {
+    // Convite: abre mesmo sem login (a pessoa ainda não tem conta)
+    const convite = location.hash.match(/^#\/convite\/([0-9a-f]+)/i);
+    if (convite) return telaConvite(convite[1]);
     if (!iniciou) {
       iniciou = true;
       renderSimples('<div class="carregando"><span class="spin"></span>Carregando…</div>');
@@ -853,6 +986,9 @@
       }
       case 'sinodo': return render(telaSinodo(), 'sinodo');
       case 'perfil': return render(telaPerfil(), 'perfil');
+      case 'usuarios':
+        if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/perfil'); return; }
+        return render(telaUsuarios(), 'perfil');
       default: location.replace('#/');
     }
   }

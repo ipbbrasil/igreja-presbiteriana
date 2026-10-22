@@ -302,7 +302,14 @@ textarea, .form input { width: 100%; padding: 10px 12px; border-radius: 3px; bor
 /* Envio */
 .campos { display: grid; gap: 12px; }
 @media (min-width: 600px) { .campos { grid-template-columns: 2fr 1fr; } }
-select, .campos input[type="text"] { width: 100%; height: 46px; padding: 0 12px; border-radius: 3px; border: 1px solid var(--line); background: var(--paper); font-size: 15px; color: var(--ink); }
+.campos.conv { grid-template-columns: 1fr; }
+@media (min-width: 700px) { .campos.conv { grid-template-columns: 1fr 1fr; } .campos.conv .btn { align-self: end; } }
+.conv-ok { margin-top: 14px; }
+.conv-ok code.link { display: block; margin: 6px 0; padding: 8px; background: var(--paper); border: 1px solid var(--line); font-size: 12px; overflow-wrap: anywhere; }
+.login-t { font-family: var(--serif); font-size: 21px; color: var(--navy-deep); margin: 0; }
+.login .form input[readonly] { color: var(--muted); }
+.envios .btns { margin-top: 8px; }
+select, .campos input[type="text"], .campos input[type="email"] { width: 100%; height: 46px; padding: 0 12px; border-radius: 3px; border: 1px solid var(--line); background: var(--paper); font-size: 15px; color: var(--ink); }
 .campos input:disabled { color: var(--navy-deep); font-weight: 600; opacity: 1; }
 .drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 140px; padding: 20px; border: 2px dashed var(--line); background: var(--paper); text-align: center; cursor: pointer; border-radius: var(--radius); }
 .drop:hover, .drop:focus-within { border-color: var(--gold); }

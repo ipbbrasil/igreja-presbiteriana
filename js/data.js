@@ -189,6 +189,35 @@ window.Data = (() => {
     await carregar();
   }
 
+  // ---------- Usuários e convites ----------
+  const rpc = async (nome, args) => { const { data, error } = await sb.rpc(nome, args); if (error) throw new Error(error.message); return data; };
+  const criarConvite = ({ email, nome, papel, igreja }) => rpc('criar_convite', { p_email: email, p_nome: nome, p_papel: papel, p_igreja: igreja || null });
+  const cancelarConvite = (id) => rpc('cancelar_convite', { p_id: id });
+  const listarUsuarios = () => rpc('listar_usuarios');
+  const removerAcesso = (userId) => rpc('remover_acesso', { p_user: userId });
+  async function listarConvites() {
+    const { data, error } = await sb.from('convites').select('id, codigo, email, nome, papel, criado_em, expira_em, igrejas(codigo, nome)')
+      .is('usado_em', null).order('criado_em', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+  const verConvite = async (codigo) => (await rpc('ver_convite', { p_codigo: codigo }))?.[0] || null;
+
+  // Pessoa convidada: cria a conta (ou entra na existente) e liga o perfil do convite
+  async function usarConvite({ codigo, email, senha, nome, novaConta }) {
+    if (novaConta) {
+      const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome } } });
+      if (error) throw new Error(/already registered/i.test(error.message) ? 'Este e-mail já tem conta. Use a opção "Já tenho conta".' : error.message);
+      if (!data.session) throw new Error('A conta foi criada, mas o Supabase está exigindo confirmação por e-mail. Peça ao administrador para desligar "Confirm email" nas configurações de autenticação.');
+    } else {
+      const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+      if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+    }
+    await rpc('aceitar_convite', { p_codigo: codigo, p_nome: nome || null });
+    const { data } = await sb.auth.getUser();
+    return carregarPerfil(data.user);
+  }
+
   async function urlArquivo(caminho) {
     const { data, error } = await sb.storage.from('relatorios').createSignedUrl(caminho, 600);
     if (error) throw error;
@@ -214,5 +243,6 @@ window.Data = (() => {
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, urlArquivo,
+    criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();
