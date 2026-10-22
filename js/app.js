@@ -228,11 +228,26 @@
 
       ${card('Liderança formal', `<div class="mini">${Regras.LIDERANCA.map(([k, l]) => { const c = lid(k); return `<div><strong>${fmt.int(c.total)}</strong><span>${l}</span></div>`; }).join('')}</div>`)}
 
+      ${card('Exportar', `<div class="btns exp">
+          <button class="btn" data-exportar="excel">${ic('baixar')}Planilha Excel</button>
+          <button class="btn" data-exportar="pdf">${ic('arquivo')}Resumo em PDF</button>
+        </div>`, { sub: `Mesmos relatórios do painel: ${ui.escopo === 'todos' ? 'todos os recebidos' : 'somente os validados'} (${base.length} de ${todos.length})` })}
+
       <p class="nota">Campos vazios nos relatórios contam como <em>não informado</em>, não como zero. Cada indicador mostra quantas igrejas contribuíram para o total.</p>`;
 
     return {
       title: esc(S.presbiterio?.nome || 'Presbitério'), sub: `Exercício ${S.ano}`, body,
-      after: () => $app.querySelectorAll('[data-escopo]').forEach((b) => b.addEventListener('click', () => { ui.escopo = b.dataset.escopo; rota(); })),
+      after: () => {
+        $app.querySelectorAll('[data-escopo]').forEach((b) => b.addEventListener('click', () => { ui.escopo = b.dataset.escopo; rota(); }));
+        $app.querySelectorAll('[data-exportar]').forEach((b) => b.addEventListener('click', async () => {
+          const html = b.innerHTML;
+          b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
+          try {
+            await Exportar[b.dataset.exportar]({ base, todos, escopo: ui.escopo, presbiterio: S.presbiterio, sinodo: S.sinodo, ano: S.ano });
+          } catch (e) { toast('Não foi possível exportar: ' + e.message); }
+          b.disabled = false; b.innerHTML = html;
+        }));
+      },
     };
   }
 

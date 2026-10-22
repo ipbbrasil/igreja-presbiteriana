@@ -145,5 +145,5 @@ window.Envio = (() => {
 
   const nomeSeguro = (n) => norm(n).toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 
-  return { analisar, lerArquivo, nomeSeguro, LIMITE };
+  return { analisar, lerArquivo, nomeSeguro, carregarScript, LIMITE };
 })();
