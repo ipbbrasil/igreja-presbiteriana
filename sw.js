@@ -1,4 +1,4 @@
-﻿// Service worker: guarda sÃ³ os arquivos do app (nunca os dados) para abrir rÃ¡pido.
+﻿// Service worker: guarda só os arquivos do app (nunca os dados) para abrir rápido.
 const VERSAO = 'painel-v4';
 const ARQUIVOS = [
   './', 'index.html', 'css/app.css', 'js/config.js', 'js/regras.js', 'js/data.js', 'js/charts.js', 'js/leitura.js', 'js/envio.js', 'js/app.js',
@@ -13,7 +13,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSAO).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-// Rede primeiro (atualizaÃ§Ãµes aparecem logo); cache sÃ³ como reserva offline.
+// Rede primeiro (atualizações aparecem logo); cache só como reserva offline.
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.includes('/dados/')) return;
