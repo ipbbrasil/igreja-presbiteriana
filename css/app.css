@@ -330,6 +330,14 @@ select, .campos input[type="text"], .campos input[type="email"] { width: 100%; h
 .ic-btn { width: 44px; padding: 0; flex: none; }
 .env-a { display: flex; gap: 8px; align-items: center; flex: none; }
 
+/* Dicionário de dados */
+.tbl.dic th, .tbl.dic td { white-space: normal; text-align: left !important; vertical-align: top; font-size: 12.5px; min-width: 120px; }
+.tbl.dic td:first-child { min-width: 200px; }
+.tbl.dic code { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.tbl.dic small { display: block; color: var(--ink-2); margin-top: 4px; }
+.tbl.dic tr.pend td { background: var(--warn-bg); }
+.mini div span + span { font-size: 11px; color: var(--muted); }
+
 /* Ajuda */
 .ab-help { display: grid; place-items: center; width: 40px; height: 40px; margin-right: -8px; border-radius: 50%; flex: none; }
 .ab-help:active { background: rgba(255, 255, 255, .12); }

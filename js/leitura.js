@@ -226,5 +226,87 @@ window.Leitura = (() => {
     return { ok: faltou.length <= ESPERADOS.length * 0.4, dados: d, alertas, modelo, ident, lidos, esperados: ESPERADOS.length };
   }
 
-  return { extrair, numero };
+  // ---------- Excel (.xlsx) do modelo oficial: leitura célula a célula conforme o Dicionário ----------
+  function lerCelula(ws, ref, tipo) {
+    const c = ws?.[ref];
+    if (!c || c.v === undefined || c.v === null || (c.t === 's' && !String(c.v).trim())) return { v: null, semValor: !!c?.f };
+    if (c.t === 'e') return { v: null, erro: c.w || '#ERRO' };
+    if (tipo === 'texto') return { v: String(c.v).replace(/^Quais\?\s*/i, '').trim() || null };
+    if (tipo === 'data') {
+      if (c.t === 'n' && window.XLSX) { const p = window.XLSX.SSF.parse_date_code(c.v); return { v: p ? `${p.y}-${String(p.m).padStart(2, '0')}-${String(p.d).padStart(2, '0')}` : null }; }
+      return { v: isoData(String(c.v).trim()) }; // "00/00/0000" do modelo vira null
+    }
+    if (c.t === 'n') return { v: Math.round(c.v * 100) / 100 };
+    const v = c.t === 's' ? numero(c.v) : null;
+    return v === null ? { v: null, invalido: String(c.v) } : { v };
+  }
+
+  // wb: planilha lida pelo SheetJS (com cellFormula). Retorna o mesmo formato de extrair().
+  function extrairXlsx(wb, { sinodo = null, presbiterio = null } = {}) {
+    const D = window.Dicionario;
+    const alertas = [];
+    const alerta = (nivel, campo, msg) => alertas.push({ nivel, campo, msg });
+    const aba = (nome) => wb.Sheets[wb.SheetNames.find((n) => norm(n) === norm(nome))];
+    const ws = aba(D.ABAS.CE);
+    const diferentes = (w, mapa) => Object.entries(mapa).filter(([ref, txt]) => !norm(w?.[ref]?.v).startsWith(txt)).map(([ref]) => ref);
+    if (!ws) return { ok: false, alertas: [{ nivel: 'erro', campo: 'modelo', msg: 'A planilha não tem a aba "Cadastro & Estatística" do modelo oficial.' }], dados: null, lidos: 0, esperados: 0 };
+    const fora = diferentes(ws, D.CONFERIR[D.ABAS.CE]);
+    if (fora.length) {
+      return { ok: false, dados: null, lidos: 0, esperados: 0, alertas: [{ nivel: 'erro', campo: 'modelo',
+        msg: `A aba "Cadastro & Estatística" não está na posição do modelo CSM-IPB 2021 v8.0 (células ${fora.join(', ')}). Use o modelo oficial sem inserir ou apagar linhas.` }] };
+    }
+
+    const d = { lideranca: {}, estrutura: {}, departamentos: {}, comungantes: { admissao: {}, demissao: {} }, nao_comungantes: { admissao: {}, demissao: {} },
+      rol_atual: null, financeiro: { realizado: {}, previsto: {} }, identificacao: {} };
+    let lidos = 0;
+    const sobrescritas = [];
+    const lerCampo = (w, nomeAba, campo) => {
+      const tipo = campo.tipo === 'moeda' ? 'moeda' : campo.tipo;
+      const vals = campo.celulas.map((ref) => {
+        const r = lerCelula(w, ref, tipo === 'texto' || tipo === 'data' ? tipo : 'num');
+        if (r.erro) alerta('erro', campo.id, `A planilha mostra erro (${r.erro}) na célula ${ref} — ${campo.rotulo}.`);
+        if (r.invalido) alerta('aviso', campo.id, `Valor não numérico "${r.invalido}" na célula ${ref} — ${campo.rotulo}; considerado não informado.`);
+        if (r.semValor) alerta('aviso', campo.id, `A fórmula da célula ${ref} está sem resultado calculado. Abra e salve a planilha no Excel antes de enviar.`);
+        if (D.FORMULAS[nomeAba]?.has(ref) && w[ref] && !w[ref].f && r.v !== null) sobrescritas.push(`${ref} (${campo.rotulo})`);
+        return r.v;
+      });
+      if (tipo === 'texto') return vals.filter((v) => v).join(' — ') || null;
+      return campo.celulas.length > 1 ? vals : vals[0];
+    };
+
+    for (const campo of D.campos.filter((c) => c.aba === D.ABAS.CE && !c.pendente)) {
+      definirCaminho(d, campo.id.split('.'), lerCampo(ws, D.ABAS.CE, campo));
+      if (!campo.id.startsWith('identificacao.')) lidos++;
+    }
+    // Conselho / Congregação: só entram se houver algo preenchido (o modelo vem com as abas vazias)
+    for (const [nomeAba, chave] of [[D.ABAS.CM, 'conselho'], [D.ABAS.CG, 'congregacao_anexo']]) {
+      const w = aba(nomeAba);
+      if (!w || diferentes(w, D.CONFERIR[D.ABAS.CM]).length) continue;
+      const bloco = {};
+      for (const campo of D.campos.filter((c) => c.aba === D.ABAS.CM && !c.pendente)) bloco[campo.id.split('.')[1]] = lerCampo(w, nomeAba, campo);
+      if (chave === 'congregacao_anexo') bloco.nome = lerCelula(w, 'G8', 'texto').v;
+      const preenchido = Object.entries(bloco).some(([k, v]) => k !== 'nome' && v !== null && v !== 0);
+      if (preenchido) { d[chave] = bloco; lidos += Object.keys(bloco).length; }
+    }
+
+    const ident = d.identificacao;
+    const modelo = (() => { const m = norm(ws.A83?.v).match(/CSM-IPB\s*-\s*(\d{4})\s*-\s*V\.?\s*([\d.]+)/); return m ? `CSM-IPB ${m[1]} v${m[2]} (Excel)` : 'CSM-IPB (Excel)'; })();
+    if (sobrescritas.length) alerta('aviso', 'formulas', `Fórmula do modelo substituída por valor digitado: ${sobrescritas.slice(0, 6).join('; ')}${sobrescritas.length > 6 ? '…' : ''}. Confira as somas.`);
+    if (!ident.nome_no_documento) alerta('aviso', 'identificacao.nome', 'Nome da igreja em branco no documento.');
+    if (sinodo && ident.sinodo_sigla && norm(ident.sinodo_sigla) !== norm(sinodo)) alerta('aviso', 'identificacao.sinodo', `Sigla do sínodo "${ident.sinodo_sigla}" (esperado ${sinodo}).`);
+    if (presbiterio && ident.presbiterio_sigla && norm(ident.presbiterio_sigla) !== norm(presbiterio)) alerta('aviso', 'identificacao.presbiterio', `Sigla do presbitério "${ident.presbiterio_sigla}" (esperado ${presbiterio}).`);
+    for (const [lado, col] of [['realizado', 'H'], ['previsto', 'W']]) {
+      const a = d.financeiro[lado].grande_total, b = lerCelula(ws, `${col}71`, 'num').v;
+      if (a != null && b != null && Math.abs(a - b) > 0.005) alerta('aviso', `financeiro.${lado}.grande_total`, `O "Grande Total" das receitas (${a.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) difere do "Grande Total" das despesas (${b.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}).`);
+    }
+    return { ok: true, dados: d, alertas, modelo, ident: { ano: ident.ano, nome: ident.nome_no_documento, sinodo_sigla: ident.sinodo_sigla, presbiterio_sigla: ident.presbiterio_sigla },
+      lidos, esperados: lidos, formato: 'xlsx' };
+  }
+
+  function definirCaminho(o, path, v) {
+    const pai = path.slice(0, -1).reduce((x, k) => (x[k] && typeof x[k] === 'object' ? x[k] : (x[k] = {})), o);
+    pai[path[path.length - 1]] = v;
+  }
+
+  return { extrair, extrairXlsx, numero };
 })();

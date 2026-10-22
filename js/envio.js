@@ -57,9 +57,12 @@ window.Envio = (() => {
     };
   }
 
-  async function lerXlsx(buf) {
+  async function abrirXlsx(buf) {
     await carregarScript(SHEETJS);
-    const wb = window.XLSX.read(buf, { type: 'array', bookSheets: true });
+    return window.XLSX.read(buf, { type: 'array', cellFormula: true });
+  }
+
+  function lerXlsx(wb) {
     const abas = wb.SheetNames;
     const tem = (t) => abas.some((a) => norm(a).includes(t));
     return { abas, modelo: tem('CADASTRO') || (tem('CONSELHO') && tem('CONGREGA')) };
@@ -76,10 +79,25 @@ window.Envio = (() => {
     leitura.alertas.filter((a) => a.campo !== 'identificacao.nome').forEach((a) => add('aviso', a.nivel === 'erro' ? 'Problema no documento' : 'Observação da leitura', a.msg));
   }
 
-  // Lê os números de um PDF já enviado (usado pela administração em "Ler agora")
+  // Lê os números de um arquivo já enviado, PDF ou Excel (usado em "Ler agora")
   async function lerArquivo(buf, siglas = {}) {
+    const b = new Uint8Array(buf.slice(0, 2));
+    if (b[0] === 0x50 && b[1] === 0x4b) return Leitura.extrairXlsx(await abrirXlsx(buf), siglas); // PK = xlsx
     const doc = await abrirPdf(buf);
     try { return await Leitura.extrair(doc, siglas); } finally { doc.destroy(); }
+  }
+
+  // Checagens comuns de exercício e igreja, a partir do que está escrito no documento
+  function checksIdentificacao(info, { igreja, ano }, add, res) {
+    if (info.ano == null) add('aviso', 'Exercício', 'Não foi possível identificar o ano no documento.');
+    else if (info.ano !== ano) { add('erro', 'Exercício não confere', `O documento é do ano ${info.ano}, mas foi selecionado ${ano}.`); res.bloqueia = true; }
+    else add('ok', 'Exercício confere', String(ano));
+    if (!info.nome) add('aviso', 'Igreja', 'O nome da igreja está em branco no documento.');
+    else {
+      const a = palavras(info.nome), b = palavras(igreja.nome);
+      const confere = a.some((p) => b.includes(p)) || norm(info.nome).includes(norm(igreja.nome));
+      add(confere ? 'ok' : 'aviso', confere ? 'Igreja confere' : 'Igreja pode não conferir', `No documento: “${info.nome}”`);
+    }
   }
 
   // Retorna { formato, tipo_pdf, sha256, checks[], bloqueia, resumo, leitura }
@@ -118,27 +136,29 @@ window.Envio = (() => {
       if (info.digital) {
         if (info.modelo) add('ok', 'Modelo oficial reconhecido', info.versao || 'Informações Cadastrais e Estatísticas de Comunidade Presbiteriana');
         else add('aviso', 'Modelo não reconhecido', 'O texto do formulário oficial não foi encontrado. Confira se é o relatório correto.');
-        if (info.ano == null) add('aviso', 'Exercício', 'Não foi possível identificar o ano no documento.');
-        else if (info.ano !== ano) { add('erro', 'Exercício não confere', `O documento é do ano ${info.ano}, mas foi selecionado ${ano}.`); res.bloqueia = true; }
-        else add('ok', 'Exercício confere', String(ano));
-        if (!info.nome) add('aviso', 'Igreja', 'O nome da igreja está em branco no documento.');
-        else {
-          const a = palavras(info.nome), b = palavras(igreja.nome);
-          const confere = a.some((p) => b.includes(p)) || norm(info.nome).includes(norm(igreja.nome));
-          add(confere ? 'ok' : 'aviso', confere ? 'Igreja confere' : 'Igreja pode não conferir', `No documento: “${info.nome}”`);
-        }
+        checksIdentificacao(info, { igreja, ano }, add, res);
         if (info.modelo) checksLeitura(res.leitura, add);
       }
     } else {
-      let info;
-      try { info = await lerXlsx(buf); } catch (e) {
+      let info, wb;
+      try { wb = await abrirXlsx(buf); info = lerXlsx(wb); } catch (e) {
         add('erro', 'Leitura do Excel', 'Não foi possível abrir a planilha.');
         res.bloqueia = true; return res;
       }
-      res.resumo = info;
       add('ok', 'Formato: Excel (.xlsx)', `Abas: ${info.abas.join(', ')}`);
       add(info.modelo ? 'ok' : 'aviso', info.modelo ? 'Modelo oficial reconhecido' : 'Modelo não reconhecido',
         info.modelo ? 'Abas do formulário oficial encontradas.' : 'As abas esperadas (Conselho, Congregação, Cadastro & Estatística) não foram encontradas.');
+      if (info.modelo) {
+        try { res.leitura = Leitura.extrairXlsx(wb, siglas); } catch (e) { res.leitura = null; }
+        if (res.leitura?.ok) {
+          info.ano = res.leitura.ident.ano; info.nome = res.leitura.ident.nome; info.versao = res.leitura.modelo;
+          checksIdentificacao(info, { igreja, ano }, add, res);
+          if (res.leitura.dados.conselho) add('ok', 'Aba do Conselho lida', 'Vida ministerial e administração (Santa Ceia, evangelização, visitas, reuniões…).');
+        }
+        if (!res.leitura?.ok) res.leitura?.alertas?.forEach((a) => add('aviso', 'Modelo da planilha', a.msg));
+        checksLeitura(res.leitura?.ok ? res.leitura : null, add);
+      }
+      res.resumo = { abas: info.abas, ano: info.ano ?? null, nome: info.nome ?? null, versao: info.versao ?? null };
     }
     return res;
   }

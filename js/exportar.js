@@ -94,6 +94,10 @@ window.Exportar = (() => {
           dp.totais?.[0], ...DEPARTAMENTOS.map(([k]) => dp[k]?.[1]), dp.totais?.[1]].map(val);
       })), 'Estrutura');
 
+    const minis = Dicionario.campos.filter((c) => c.id.startsWith('conselho.') && !c.pendente && c.tipo !== 'texto' && c.id !== 'conselho.congregacoes');
+    X.utils.book_append_sheet(wb, aba(X, ['Igreja', ...minis.map((c) => c.rotulo)],
+      base.map((r) => [nome(r), ...minis.map((c) => val(r.dados.conselho?.[c.id.split('.')[1]]))])), 'Vida ministerial');
+
     const camposFin = [['saldo_anterior', 'Saldo anterior'], ...RECEITAS, ['total_receita', 'Total da receita'], ['grande_total', 'Grande total'],
       ...DESPESAS, ['total_despesa', 'Total da despesa'], ['saldo_seguinte', 'Saldo para o ano seguinte']];
     const moedas = camposFin.map((_, j) => j + 1);

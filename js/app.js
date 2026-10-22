@@ -231,6 +231,16 @@
 
       ${card('Liderança formal', `<div class="mini">${Regras.LIDERANCA.map(([k, l]) => { const c = lid(k); return `<div><strong>${fmt.int(c.total)}</strong><span>${l}</span></div>`; }).join('')}</div>`)}
 
+      ${(() => {
+        const itens = [['ceia_total', 'Celebrações da Santa Ceia'], ['atividades_evangelisticas', 'Atividades evangelísticas'], ['textos_total', 'Textos distribuídos'],
+          ['discipulados', 'Discipulados'], ['atos_beneficentes_total', 'Atos beneficentes'], ['visitas_total', 'Visitas']]
+          .map(([k, l]) => ({ l, c: Regras.consolidar(base, (r) => r.dados.conselho?.[k]) }));
+        return card('Vida ministerial', itens.some((x) => x.c.n)
+          ? `<div class="mini">${itens.map((x) => `<div><strong>${fmt.int(x.c.total)}</strong><span>${x.l}</span><span>${x.c.n} de ${x.c.de} igrejas</span></div>`).join('')}</div>`
+          : '<p class="vazio">Nenhum dos relatórios considerados trouxe a aba “Conselho ou Mesa”. Esses dados chegam quando a igreja envia o relatório completo em Excel.</p>',
+        { sub: 'Da aba “Conselho ou Mesa” dos relatórios enviados em Excel · cada número mostra quantas igrejas informaram' });
+      })()}
+
       ${card('Exportar', `<div class="btns exp">
           <button class="btn" data-exportar="excel">${ic('baixar')}Planilha Excel</button>
           <button class="btn" data-exportar="pdf">${ic('arquivo')}Resumo em PDF</button>
@@ -305,7 +315,7 @@
           <div class="item-s">${chipEnvio(e.status)}</div>
         </div>
         <div class="env-a">
-          ${e.status === 'recebido' && e.formato === 'pdf' && e.tipo_pdf === 'digital' && Data.podeEnviar() ? `<button class="btn" data-ler="${esc(e.id)}">Ler agora</button>` : ''}
+          ${e.status === 'recebido' && (e.formato === 'xlsx' || e.tipo_pdf === 'digital') && Data.podeEnviar() ? `<button class="btn" data-ler="${esc(e.id)}">Ler agora</button>` : ''}
           ${e.status === 'recebido' && !(e.formato === 'pdf' && e.tipo_pdf === 'digital') && Data.podeValidar() ? `<a class="btn" href="#/digitar/${esc(e.id)}">Digitar dados</a>` : ''}
           <button class="btn ic-btn" data-baixar="${esc(e.caminho)}" aria-label="Baixar ${esc(e.arquivo_nome)}" title="Baixar arquivo original">${ic('baixar')}</button>
         </div>
@@ -413,7 +423,49 @@
   }
 
   // ---------- Igreja ----------
-  const ABAS =[['geral', 'Visão geral'], ['membresia', 'Membresia'], ['educacao', 'Educação'], ['financas', 'Finanças'], ['conferencia', 'Conferência']];
+  const ABAS = [['geral', 'Visão geral'], ['membresia', 'Membresia'], ['educacao', 'Educação'], ['financas', 'Finanças'], ['ministerio', 'Ministério'], ['conferencia', 'Conferência']];
+  const formatoTxt = (r) => (r.tipo_pdf ? `PDF ${r.tipo_pdf}` : /\.xlsx$/i.test(r.arquivo || '') ? 'Excel' : 'arquivo');
+
+  // Vida ministerial e administração: aba "Conselho ou Mesa" (só existe em relatórios enviados em Excel)
+  const MIN_ITENS = {
+    ceia: [['ceia_grupos', 'Ceias em grupo'], ['ceia_individuos', 'Ceias a indivíduos'], ['ceia_total', 'Total']],
+    evang: [['atividades_evangelisticas', 'Atividades evangelísticas'], ['biblias', 'Bíblias'], ['novos_testamentos', 'Novos Testamentos'], ['folhetos', 'Folhetos'], ['outras_literaturas', 'Outras literaturas'], ['textos_total', 'Textos (total)']],
+    educ: [['grupos_corais', 'Grupos corais'], ['conjuntos_musicais', 'Conjuntos musicais'], ['discipulados', 'Discipulados']],
+    social: [['atos_beneficentes_junta', 'Atos da Junta Diaconal'], ['atos_beneficentes_outros', 'Atos de outros deptos.'], ['atos_beneficentes_total', 'Atos (total)'],
+      ['visitas_oficiais', 'Visitas de oficiais'], ['visitas_outros', 'Visitas de outros deptos.'], ['visitas_total', 'Visitas (total)']],
+    adm: [['reunioes_conselho', 'Reuniões do Conselho'], ['reunioes_junta', 'Reuniões da Junta'], ['reunioes_assembleia', 'Assembleias'], ['reunioes_exame_contas', 'Exame de contas'],
+      ['mandato_vencer_presbiteros', 'Presbíteros c/ mandato a vencer'], ['mandato_vencer_diaconos', 'Diáconos c/ mandato a vencer']],
+  };
+  function telaMinisterio(r) {
+    const m = r.dados.conselho;
+    if (!m) {
+      return card('Vida ministerial e administração', `<p>Estes dados vêm da aba <strong>“Conselho ou Mesa”</strong> do relatório em Excel.
+        ${/\.xlsx$/i.test(r.arquivo || '') ? 'Nesta planilha essa aba está vazia.' : 'Este relatório foi recebido em PDF, que traz apenas o Cadastro & Estatística.'}</p>
+        <p class="nota">Para ver Santa Ceia, evangelização, visitas, reuniões e planejamento, envie o relatório completo em Excel (.xlsx).</p>`);
+    }
+    const mini = (bloco, itens) => `<div class="mini">${itens.map(([k, l]) => `<div><strong>${fmt.int(bloco[k])}</strong><span>${l}</span></div>`).join('')}</div>`;
+    const textos = (bloco, itens) => { const dl = itens.filter(([k]) => bloco[k]).map(([k, l]) => `<dt>${l}</dt><dd>${esc(bloco[k])}</dd>`).join(''); return dl ? `<dl class="dl">${dl}</dl>` : ''; };
+    const fonte = `${ic('arquivo')} Fonte: ${esc(r.arquivo)} · aba “Conselho ou Mesa”`;
+    const cg = r.dados.congregacao_anexo;
+    return `
+      <div class="kpis k4">
+        ${kpi('Celebrações da Santa Ceia', fmt.int(m.ceia_total))}
+        ${kpi('Atividades evangelísticas', fmt.int(m.atividades_evangelisticas))}
+        ${kpi('Visitas', fmt.int(m.visitas_total))}
+        ${kpi('Atos beneficentes', fmt.int(m.atos_beneficentes_total))}
+      </div>
+      ${card('Adoração e comunhão', mini(m, MIN_ITENS.ceia), { fonte })}
+      ${card('Evangelização e missões', mini(m, MIN_ITENS.evang) + textos(m, [['outra_participacao_missionaria', 'Outra participação missionária']]), { fonte })}
+      ${card('Educação e música', mini(m, MIN_ITENS.educ), { fonte })}
+      ${card('Ação social e visitação', mini(m, MIN_ITENS.social), { fonte })}
+      ${card('Administração', mini(m, MIN_ITENS.adm) + textos(m, [['conselheiros_sociedades', 'Conselheiros das sociedades'], ['causas_extralocais', 'Causas extralocais'],
+        ['reforma_projeto', 'Reforma/construção em projeto'], ['reforma_andamento', 'Reforma/construção em andamento']]), { fonte })}
+      ${textos(m, [['objetivos_alcancados', 'Objetivos alcançados'], ['objetivos_nao_alcancados', 'Objetivos não alcançados e dificuldades']]) ? card('Planejamento estratégico',
+        textos(m, [['objetivos_alcancados', 'Objetivos alcançados'], ['objetivos_nao_alcancados', 'Objetivos não alcançados e dificuldades']]), { fonte }) : ''}
+      ${cg ? card(`Congregação${cg.nome ? `: ${esc(cg.nome)}` : ''}`, mini(cg, [...MIN_ITENS.ceia.slice(2), ['atividades_evangelisticas', 'Atividades evangelísticas'], ['visitas_total', 'Visitas'], ['atos_beneficentes_total', 'Atos beneficentes']]),
+        { sub: 'Anexo “Congregação” — mostrado à parte e não somado aos totais da igreja, para não contar duas vezes' }) : ''}
+      <p class="nota">As perguntas Sim/Não do relatório (documentação, previdência, seguro, planejamento) são caixas de seleção no Excel e ainda não são lidas automaticamente.</p>`;
+  }
 
   function telaIgreja(cod, aba = 'geral') {
     const r = relPorCodigo(cod);
@@ -481,6 +533,8 @@
         </div>
         ${card('Composição das despesas realizadas', Charts.composicao(compo, { fmt: fmt.brlCurto, rotuloTotal: 'Total das despesas' }), { fonte: fonte('pág. 2 · seção IV') })}
         ${card('Realizado × previsto', tabelaFin(fr, fp), { sub: 'Realizado = movimento financeiro informado · Previsto = previsão orçamentária do próximo exercício', fonte: fonte('pág. 2 · seção IV') })}`;
+    } else if (aba === 'ministerio') {
+      corpo = telaMinisterio(r);
     } else {
       corpo = telaConferencia(r);
     }
@@ -488,7 +542,7 @@
     const head = `<section class="card ig-head">
         <div class="ig-top">${chip(r.status)}<span class="muted">${esc(r.igreja.codigo)}</span></div>
         <p class="muted">${esc(r.igreja.cidade)} · ${esc(r.igreja.uf)} · organizada em ${fmt.data(r.igreja.organizacao)}</p>
-        <p class="muted small">${ic('arquivo')} ${esc(r.arquivo)} · PDF ${esc(r.tipo_pdf)} · ${esc(r.modelo)}</p>
+        <p class="muted small">${ic('arquivo')} ${esc(r.arquivo)} · ${esc(formatoTxt(r))} · ${esc(r.modelo || 'modelo não identificado')}</p>
         ${Data.podeEnviar() ? `<a class="btn ig-env" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar novo relatório</a>` : ''}
       </section>
       <nav class="tabs" aria-label="Seções">${abas}</nav>`;
@@ -725,11 +779,12 @@
       ${card('Alertas da leitura do documento', `<ul class="als">${alertas}</ul>`)}
       ${card('Origem dos dados', `<dl class="dl">
           <dt>Documento</dt><dd>${esc(r.arquivo)}</dd>
-          <dt>Formato</dt><dd>PDF ${esc(r.tipo_pdf)}${r.tipo_pdf === 'digitalizado' ? ' (imagem — leitura visual/OCR)' : ' (texto selecionável)'}</dd>
+          <dt>Formato</dt><dd>${esc(formatoTxt(r))}${r.tipo_pdf === 'digitalizado' ? ' (imagem — dados digitados/conferidos manualmente)' : r.tipo_pdf ? ' (texto selecionável)' : ''}</dd>
           <dt>Modelo</dt><dd>${esc(r.modelo || 'não identificado')}</dd>
           ${r.versao ? `<dt>Versão</dt><dd>${r.versao}${r.versao > 1 ? ' (as anteriores ficam no histórico como substituídas)' : ''}</dd>` : ''}
-          <dt>Página 1</dt><dd>I Identificação · II Estrutura · III Rol de membros</dd>
-          <dt>Página 2</dt><dd>IV Informações financeiras · VI Informações finais</dd>
+          ${r.tipo_pdf ? `<dt>Página 1</dt><dd>I Identificação · II Estrutura · III Rol de membros</dd>
+          <dt>Página 2</dt><dd>IV Informações financeiras · VI Informações finais</dd>`
+            : `<dt>Abas lidas</dt><dd>Cadastro & Estatística${r.dados.conselho ? ' · Conselho ou Mesa' : ''}${r.dados.congregacao_anexo ? ' · Congregação' : ''} (células conforme o Dicionário de dados)</dd>`}
           <dt>Extração</dt><dd>${r.extraido_em ? `${fmt.dataHora(r.extraido_em)} · leitura automática` : 'importação inicial'}</dd>
         </dl>`)}
       ${card('Arquivos enviados pelo site', listaEnvios(S.envios.filter((e) => e.igrejas?.codigo === r.igreja.codigo), { igreja: false }))}
@@ -788,6 +843,56 @@
         ${card('Presbitérios', `<div class="lista"><a class="item" href="#/">
             <div class="item-m"><strong>${esc(S.presbiterio?.nome || '')}</strong><span class="muted">${esc(S.presbiterio?.sigla || '')} · ${todos.length} relatórios · ${val.length} validados</span></div>
             <div class="item-n"><strong>${fmt.int(com.total)}</strong><span>comungantes</span></div>${ic('seta', 'chev')}</a></div>`, { sub: 'Navegação: Sínodo → Presbitério → Igreja' })}`,
+    };
+  }
+
+  // ---------- Dicionário de dados ----------
+  function telaDicionario() {
+    const campos = Dicionario.campos;
+    const grupos = [...new Set(campos.map((c) => c.grupo))];
+    const linha = (c) => `<tr class="dic-l${c.pendente ? ' pend' : ''}">
+        <td><strong>${esc(c.rotulo)}</strong><code>${esc(c.id)}</code>${c.obs ? `<small>${esc(c.obs)}</small>` : ''}</td>
+        <td>${esc(c.aba)}<br><strong>${c.celulas.length ? esc(c.celulas.join(' · ')) : 'caixa de seleção'}</strong></td>
+        <td>${esc(c.tipo)}<br><span class="muted">${esc(c.unidade)} · ${esc(c.periodo)}</span></td>
+        <td>${esc(c.validacao)}${c.formula ? `<br><span class="muted">Fórmula: ${esc(c.formula)}</span>` : ''}</td>
+        <td>${esc(c.consolida)}<br><span class="muted">${esc(c.painel)}</span></td></tr>`;
+    const body = `
+      <p class="nota top">Base lógica da plataforma (seção 4 do projeto): cada informação do modelo oficial <strong>CSM-IPB 2021 v8.0</strong>, com a célula de origem no Excel, tipo, unidade, período, regras de validação, fórmulas, consolidação e o painel onde aparece. O leitor de Excel usa exatamente estas células; o de PDF produz os mesmos campos.</p>
+      <div class="kpis k4">
+        ${kpi('Campos no dicionário', fmt.int(campos.length))}
+        ${kpi('Lidos automaticamente', fmt.int(campos.filter((c) => !c.pendente).length))}
+        ${kpi('Com fórmula no modelo', fmt.int(campos.filter((c) => c.formula).length))}
+        ${kpi('Pendentes (caixas Sim/Não)', fmt.int(campos.filter((c) => c.pendente).length))}
+      </div>
+      <div class="btns"><button class="btn" id="dic-xlsx">${ic('baixar')}Baixar dicionário (Excel)</button></div>
+      <div class="busca"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON.busca}</svg><input type="search" id="dic-q" placeholder="Buscar campo, célula ou regra (ex.: H47, dízimos, fórmula)" aria-label="Buscar no dicionário"></div>
+      ${grupos.map((g) => `<section class="card dic-g"><header class="card-h"><h2>${esc(g)}</h2></header>
+        <div class="tbl-wrap"><table class="tbl dic"><thead><tr><th>Campo</th><th>Origem</th><th>Tipo</th><th>Validação</th><th>Consolidação e painel</th></tr></thead>
+        <tbody>${campos.filter((c) => c.grupo === g).map(linha).join('')}</tbody></table></div></section>`).join('')}`;
+    return {
+      title: 'Dicionário de dados', sub: 'Modelo CSM-IPB 2021 v8.0', back: '#/ajuda', body,
+      after: () => {
+        const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+        document.getElementById('dic-q').addEventListener('input', (e) => {
+          const q = norm(e.target.value.trim());
+          $app.querySelectorAll('.dic-g').forEach((sec) => {
+            let n = 0;
+            sec.querySelectorAll('.dic-l').forEach((tr) => { const ok = !q || norm(tr.textContent).includes(q); tr.hidden = !ok; if (ok) n++; });
+            sec.hidden = n === 0;
+          });
+        });
+        document.getElementById('dic-xlsx').addEventListener('click', async () => {
+          try {
+            await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+            const X = window.XLSX;
+            const ws = X.utils.aoa_to_sheet([['Identificador', 'Campo', 'Grupo', 'Aba', 'Células', 'Tipo', 'Unidade', 'Período', 'Validação', 'Fórmula', 'Consolidação', 'Painel', 'Observação', 'Situação'],
+              ...campos.map((c) => [c.id, c.rotulo, c.grupo, c.aba, c.celulas.join(', '), c.tipo, c.unidade, c.periodo, c.validacao, c.formula || '', c.consolida, c.painel, c.obs || '', c.pendente ? 'pendente' : 'lido'])]);
+            ws['!cols'] = [30, 44, 26, 22, 14, 18, 18, 24, 50, 44, 34, 40, 50, 10].map((wch) => ({ wch }));
+            const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Dicionário');
+            X.writeFile(wb, 'dicionario-dados-CSM-IPB-v8.xlsx');
+          } catch (err) { toast('Não foi possível gerar: ' + err.message); }
+        });
+      },
     };
   }
 
@@ -933,6 +1038,8 @@
             <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a>` : ''}
           <a class="item" href="#/ajuda">
             <div class="item-m"><strong>Ajuda</strong><span class="muted">Tudo o que o aplicativo faz, passo a passo e configurações</span></div>${ic('seta', 'chev')}</a>
+          <a class="item" href="#/dicionario">
+            <div class="item-m"><strong>Dicionário de dados</strong><span class="muted">Cada campo do relatório oficial: célula, tipo, regras e onde aparece</span></div>${ic('seta', 'chev')}</a>
         </div>
         ${local ? card('Simular outro perfil', `<div class="perfis">
             ${['admin_presbiterial', 'admin_sinodal', 'representante'].map((p) => `<button class="btn${S.perfil.papel === p ? ' primary' : ''}" data-papel="${p}">${PAPEIS[p]}</button>`).join('')}
@@ -980,7 +1087,7 @@
     }
     const [p0 = '', p1, p2] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     const rep = S.perfil.papel === 'representante';
-    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar' || p0 === 'ajuda')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
+    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar' || p0 === 'ajuda' || p0 === 'dicionario')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     if (p0 === 'igreja' && rep && p1 !== S.perfil.igreja_codigo) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     switch (p0) {
       case '': return render(telaPresbiterio(), 'inicio');
@@ -1002,6 +1109,7 @@
       case 'perfil': return render(telaPerfil(), 'perfil');
       case 'ajuda':
         return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');
+      case 'dicionario': return render(telaDicionario(), 'perfil');
       case 'usuarios':
         if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/perfil'); return; }
         return render(telaUsuarios(), 'perfil');

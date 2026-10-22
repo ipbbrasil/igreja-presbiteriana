@@ -75,6 +75,7 @@ window.Ajuda = (() => {
         <li><strong>Membresia:</strong> admissões e demissões por tipo e sexo, evolução do ano anterior para o atual.</li>
         <li><strong>Educação:</strong> Escola Dominical e departamentos internos (UCP, UPA, UMP, SAF, UPH).</li>
         <li><strong>Finanças:</strong> receitas e despesas — realizado no ano e previsão para o próximo.</li>
+        <li><strong>Ministério:</strong> vida ministerial e administração (Santa Ceia, evangelização, textos distribuídos, discipulados, ação social, visitas, reuniões, mandatos, reformas e planejamento). Só aparece quando o relatório foi enviado em Excel com a aba “Conselho ou Mesa” preenchida.</li>
         <li><strong>Conferência:</strong> verificações de soma, alertas da leitura, origem dos dados, arquivos enviados e histórico. O número na aba indica pendências.</li>
       </ul>
       <p class="nota">Em todas as tabelas, “—” significa <em>não informado</em> e 0 significa <em>informado como zero</em>.</p>`,
@@ -94,19 +95,22 @@ window.Ajuda = (() => {
         <li>Se o <strong>ano</strong> do documento é o exercício escolhido — ano diferente <strong>impede o envio</strong>.</li>
         <li>Se o <strong>nome da igreja</strong> no documento confere (aviso, não impede).</li>
         <li>Se o <strong>mesmo arquivo</strong> já foi enviado — duplicado <strong>impede o envio</strong>.</li>
-        <li>Em PDF digital: <strong>leitura dos números</strong> e as <strong>somas</strong>, para você corrigir antes de enviar se algo não fechar.</li>
+        <li>Em PDF digital ou Excel: <strong>leitura dos números</strong> e as <strong>somas</strong>, para você corrigir antes de enviar se algo não fechar.</li>
       </ul>
       <p>Verde = ok · amarelo = aviso (pode enviar) · vermelho = impede o envio.</p>
       <p>O arquivo original fica guardado em uma pasta <strong>privada</strong>; só quem tem acesso à igreja consegue baixá-lo (link temporário de 10 minutos).</p>`,
     },
     {
       id: 'leitura', titulo: 'Leitura automática e versões', para: ['todos'], html: `
-      <p>Em <strong>PDF digital</strong> do modelo oficial, o sistema lê sozinho todos os campos: liderança, estrutura, departamentos, admissões e demissões (por sexo), rol e finanças (realizado e previsto).</p>
+      <p>Em <strong>PDF digital</strong> e em <strong>Excel (.xlsx)</strong> do modelo oficial, o sistema lê sozinho todos os campos: liderança, estrutura, departamentos, admissões e demissões (por sexo), rol e finanças (realizado e previsto). PDF e Excel geram exatamente os mesmos campos.</p>
       <ul>
+        <li><strong>Excel:</strong> lido célula a célula conforme o <a href="#/dicionario">Dicionário de dados</a>. Também lê a aba <em>Conselho ou Mesa</em> (Santa Ceia, evangelização, visitas, reuniões, planejamento) e a aba <em>Congregação</em>, mostradas na aba <strong>Ministério</strong> da igreja. Use o modelo oficial sem inserir ou apagar linhas.</li>
+        <li>No Excel, se a igreja digitar um número por cima de uma fórmula do modelo (ex.: comungantes do ano atual), o sistema avisa — é a causa mais comum de somas que não fecham.</li>
         <li>A leitura acontece no envio. Se não acontecer, o administrador (ou quem enviou) usa <strong>Ler agora</strong> na lista de envios.</li>
         <li>Cada leitura cria uma <strong>nova versão</strong> do relatório em <em>Aguardando conferência</em>; a versão anterior vira <em>Substituída</em> e nada é apagado.</li>
         <li><strong>Alertas da leitura</strong> apontam problemas do documento: erro de planilha (#REF!), sigla de sínodo/presbitério diferente, nome em branco, linhas fora do modelo, versão não identificada.</li>
-        <li><strong>PDF escaneado e Excel</strong> não são lidos automaticamente: o administrador usa <strong>Digitar dados</strong>.</li>
+        <li><strong>PDF escaneado</strong> não é lido automaticamente: o administrador usa <strong>Digitar dados</strong>.</li>
+        <li>As perguntas <strong>Sim/Não</strong> do Excel (documentação, previdência, seguro…) são caixas de seleção e ainda não são lidas.</li>
       </ul>`,
     },
     {
@@ -201,6 +205,7 @@ window.Ajuda = (() => {
       <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Configuração</th><th>Onde</th><th>Efeito</th></tr></thead><tbody>
         <tr><td>Endereço e chave pública do Supabase</td><td><code>js/config.js</code> (SUPABASE_URL, SUPABASE_ANON_KEY)</td><td>Banco que o site usa. Use só a chave <em>publishable</em>, nunca a secreta</td></tr>
         <tr><td>Exercício padrão</td><td><code>js/config.js</code> (ANO_PADRAO)</td><td>Ano exibido no painel</td></tr>
+        <tr><td>Dicionário de dados (células do modelo)</td><td><code>js/dicionario.js</code> · página Perfil → Dicionário de dados</td><td>Define de onde cada campo é lido no Excel; ajustar aqui se a IPB publicar nova versão do modelo</td></tr>
         <tr><td>Estrutura do banco</td><td>SQL Editor: <code>schema.sql</code>, <code>002_envios</code> a <code>005_usuarios</code></td><td>Tabelas, permissões, pasta privada, funções</td></tr>
         <tr><td>Confirmação de e-mail</td><td>Authentication → Sign In / Providers → Email → <em>Confirm email</em></td><td>Deve ficar <strong>desligada</strong> para o convite criar a conta na hora</td></tr>
         <tr><td>Primeiro administrador / perfis manuais</td><td>SQL Editor, tabela <code>perfis</code></td><td>Papel (superadmin, admin_nacional, admin_sinodal, admin_presbiterial, representante) e vínculo</td></tr>
