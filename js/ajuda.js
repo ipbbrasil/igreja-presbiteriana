@@ -199,7 +199,7 @@ window.Ajuda = (() => {
         <tr><td>Redefinir senha de um usuário</td><td>SQL Editor (<code>auth.users</code>)</td><td>Quando a pessoa não consegue entrar</td></tr>
         <tr><td>Senha do banco</td><td>Project Settings → Database</td><td>Não é usada pelo site; troque se tiver sido exposta</td></tr>
         <tr><td>Pasta dos arquivos</td><td>Storage → bucket <code>relatorios</code> (privado, 10 MB, PDF/XLSX)</td><td>Onde ficam os originais enviados</td></tr>
-        <tr><td>Publicação do site</td><td>GitHub → repositório <code>painel-estatistico</code> (GitHub Pages)</td><td>Cada alteração enviada ao repositório atualiza o site</td></tr>
+        <tr><td>Publicação do site</td><td>GitHub → repositório <code>igreja-presbiteriana</code> (GitHub Pages)</td><td>Cada alteração enviada ao repositório atualiza o site</td></tr>
         <tr><td>Modo local (teste)</td><td><code>?local=1</code> em localhost</td><td>Usa um arquivo no computador, sem Supabase, e permite simular perfis</td></tr>
       </tbody></table></div>`,
     },
