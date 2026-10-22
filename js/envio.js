@@ -31,10 +31,13 @@ window.Envio = (() => {
     return null;
   }
 
-  async function lerPdf(buf) {
+  async function abrirPdf(buf) {
     await carregarScript(PDFJS);
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-    const doc = await window.pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+    return window.pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+  }
+
+  async function lerPdf(doc) {
     let texto = '';
     for (let p = 1; p <= Math.min(doc.numPages, 4); p++) {
       const tc = await (await doc.getPage(p)).getTextContent();
@@ -62,8 +65,25 @@ window.Envio = (() => {
     return { abas, modelo: tem('CADASTRO') || (tem('CONSELHO') && tem('CONGREGA')) };
   }
 
-  // Retorna { formato, tipo_pdf, sha256, checks[], bloqueia, resumo }
-  async function analisar(file, { igreja, ano }) {
+  // Leitura dos números do formulário + resumo das somas, como itens da verificação
+  function checksLeitura(leitura, add) {
+    if (!leitura?.ok) { add('aviso', 'Leitura automática', 'Não foi possível ler os números deste documento; a conferência será manual.'); return; }
+    add('ok', 'Leitura automática', `${leitura.lidos} campos lidos do formulário.`);
+    const v = Regras.verificacoes(leitura.dados);
+    const falhas = v.filter((x) => x.ok === false), conferidas = v.filter((x) => x.ok !== null).length;
+    if (falhas.length) add('aviso', `Somas com divergência (${falhas.length} de ${conferidas})`, falhas.map((x) => x.titulo).join(' · ') + '. Se possível, corrija no relatório antes de enviar.');
+    else add('ok', 'Somas conferem', `${conferidas} verificações de soma sem divergência.`);
+    leitura.alertas.filter((a) => a.campo !== 'identificacao.nome').forEach((a) => add('aviso', a.nivel === 'erro' ? 'Problema no documento' : 'Observação da leitura', a.msg));
+  }
+
+  // Lê os números de um PDF já enviado (usado pela administração em "Ler agora")
+  async function lerArquivo(buf, siglas = {}) {
+    const doc = await abrirPdf(buf);
+    try { return await Leitura.extrair(doc, siglas); } finally { doc.destroy(); }
+  }
+
+  // Retorna { formato, tipo_pdf, sha256, checks[], bloqueia, resumo, leitura }
+  async function analisar(file, { igreja, ano, siglas = {} }) {
     const checks = [];
     const add = (estado, titulo, detalhe = '') => checks.push({ estado, titulo, detalhe });
     if (file.size > LIMITE) {
@@ -80,11 +100,16 @@ window.Envio = (() => {
     const res = { formato, tipo_pdf: null, sha256: hash, checks, resumo: {} };
 
     if (formato === 'pdf') {
-      let info;
-      try { info = await lerPdf(buf); } catch (e) {
+      let info, doc;
+      try { doc = await abrirPdf(buf); info = await lerPdf(doc); } catch (e) {
+        doc?.destroy();
         add('erro', 'Leitura do PDF', 'Não foi possível abrir o PDF (arquivo danificado ou protegido por senha).');
         res.bloqueia = true; return res;
       }
+      if (info.digital && info.modelo) {
+        try { res.leitura = await Leitura.extrair(doc, siglas); } catch (e) { res.leitura = null; }
+      }
+      doc.destroy();
       res.tipo_pdf = info.digital ? 'digital' : 'digitalizado';
       res.resumo = info;
       add('ok', 'Formato: PDF', `${info.paginas} página(s)`);
@@ -102,6 +127,7 @@ window.Envio = (() => {
           const confere = a.some((p) => b.includes(p)) || norm(info.nome).includes(norm(igreja.nome));
           add(confere ? 'ok' : 'aviso', confere ? 'Igreja confere' : 'Igreja pode não conferir', `No documento: “${info.nome}”`);
         }
+        if (info.modelo) checksLeitura(res.leitura, add);
       }
     } else {
       let info;
@@ -119,5 +145,5 @@ window.Envio = (() => {
 
   const nomeSeguro = (n) => norm(n).toLowerCase().replace(/[^a-z0-9.]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
 
-  return { analisar, nomeSeguro, LIMITE };
+  return { analisar, lerArquivo, nomeSeguro, LIMITE };
 })();

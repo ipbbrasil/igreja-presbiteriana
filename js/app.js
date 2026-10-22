@@ -268,7 +268,7 @@
   const STATUS_ENVIO = {
     recebido: { label: 'Recebido · aguardando leitura', cls: 'warning', icon: '↓' },
     em_processamento: { label: 'Em processamento', cls: 'warning', icon: '⋯' },
-    processado: { label: 'Processado', cls: 'good', icon: '✓' },
+    processado: { label: 'Lido · enviado para conferência', cls: 'good', icon: '✓' },
     rejeitado: { label: 'Rejeitado', cls: 'critical', icon: '!' },
   };
   const chipEnvio = (s) => { const x = STATUS_ENVIO[s] || STATUS_ENVIO.recebido; return `<span class="chip ${x.cls}"><b aria-hidden="true">${x.icon}</b>${x.label}</span>`; };
@@ -282,7 +282,10 @@
           <span class="muted small">${igreja ? `${esc(e.igrejas?.nome || '')} · ` : ''}Exercício ${e.ano} · ${e.formato.toUpperCase()}${e.tipo_pdf ? ` ${esc(e.tipo_pdf)}` : ''} · ${tamanho(e.tamanho || 0)} · ${fmt.dataHora(e.enviado_em)}</span>
           <div class="item-s">${chipEnvio(e.status)}</div>
         </div>
-        <button class="btn ic-btn" data-baixar="${esc(e.caminho)}" aria-label="Baixar ${esc(e.arquivo_nome)}" title="Baixar arquivo original">${ic('baixar')}</button>
+        <div class="env-a">
+          ${e.status === 'recebido' && e.formato === 'pdf' && e.tipo_pdf === 'digital' && Data.podeEnviar() ? `<button class="btn" data-ler="${esc(e.id)}">Ler agora</button>` : ''}
+          <button class="btn ic-btn" data-baixar="${esc(e.caminho)}" aria-label="Baixar ${esc(e.arquivo_nome)}" title="Baixar arquivo original">${ic('baixar')}</button>
+        </div>
       </li>`).join('')}</ul>`;
   }
 
@@ -302,7 +305,7 @@
     const local = S.modo === 'local';
 
     const body = `
-      <p class="nota top">Envie o relatório estatístico <strong>já preenchido</strong> no modelo oficial, em PDF ou Excel. O sistema confere o arquivo antes do envio; os números são lidos e conferidos depois, pela administração do presbitério.</p>
+      <p class="nota top">Envie o relatório estatístico <strong>já preenchido</strong> no modelo oficial, em PDF ou Excel. O sistema confere o arquivo e lê os números automaticamente (PDF digital); a conferência final é feita pela administração do presbitério.</p>
       ${local ? '<div class="banner warning" role="note"><b>!</b><div><strong>Modo local:</strong> a verificação do arquivo funciona, mas o envio só é possível no site publicado.</div></div>' : ''}
       ${card('1. Relatório', `<div class="campos">
           <label class="lbl">Igreja
@@ -351,7 +354,7 @@
       const minha = ++rodada;
       const igreja = S.igrejas.find((i) => i.codigo === $ig.value) || { nome: '' };
       try {
-        const a = await Envio.analisar(file, { igreja, ano: +$ano.value });
+        const a = await Envio.analisar(file, { igreja, ano: +$ano.value, siglas: { sinodo: S.sinodo?.sigla, presbiterio: S.presbiterio?.sigla } });
         if (minha !== rodada) return;
         if (!$ig.value) { a.checks.unshift({ estado: 'erro', titulo: 'Igreja', detalhe: 'Selecione a igreja do relatório.' }); }
         if (a.sha256 && $ig.value) {
@@ -377,8 +380,8 @@
       if (!analise || analise.bloqueia) return;
       $btn.disabled = true; $btn.innerHTML = '<span class="spin"></span>Enviando…';
       try {
-        await Data.enviarRelatorio({ codigo: $ig.value, ano: +$ano.value, file: $arq.files[0], analise });
-        toast('Relatório enviado. A administração fará a conferência.');
+        const { lido } = await Data.enviarRelatorio({ codigo: $ig.value, ano: +$ano.value, file: $arq.files[0], analise });
+        toast(lido ? 'Relatório enviado e lido. Os números já aparecem no painel, aguardando conferência.' : 'Relatório enviado. A administração fará a leitura e a conferência.');
         rota();
       } catch (e) {
         toast(e.message); $btn.innerHTML = `${ic('enviar')}Enviar relatório`; atualizarBotao();
@@ -546,10 +549,11 @@
       ${card('Origem dos dados', `<dl class="dl">
           <dt>Documento</dt><dd>${esc(r.arquivo)}</dd>
           <dt>Formato</dt><dd>PDF ${esc(r.tipo_pdf)}${r.tipo_pdf === 'digitalizado' ? ' (imagem — leitura visual/OCR)' : ' (texto selecionável)'}</dd>
-          <dt>Modelo</dt><dd>${esc(r.modelo)}</dd>
+          <dt>Modelo</dt><dd>${esc(r.modelo || 'não identificado')}</dd>
+          ${r.versao ? `<dt>Versão</dt><dd>${r.versao}${r.versao > 1 ? ' (as anteriores ficam no histórico como substituídas)' : ''}</dd>` : ''}
           <dt>Página 1</dt><dd>I Identificação · II Estrutura · III Rol de membros</dd>
           <dt>Página 2</dt><dd>IV Informações financeiras · VI Informações finais</dd>
-          <dt>Extração</dt><dd>${r.extraido_em ? fmt.dataHora(r.extraido_em) : 'importação inicial'}</dd>
+          <dt>Extração</dt><dd>${r.extraido_em ? `${fmt.dataHora(r.extraido_em)} · leitura automática` : 'importação inicial'}</dd>
         </dl>`)}
       ${card('Arquivos enviados pelo site', listaEnvios(S.envios.filter((e) => e.igrejas?.codigo === r.igreja.codigo), { igreja: false }))}
       ${card('Histórico', `<ul class="hist">${hist}</ul>`)}`;
@@ -678,6 +682,18 @@
     if (S.modo === 'local') { toast('Disponível apenas no site publicado.'); return; }
     const janela = window.open('', '_blank');
     try { janela.location = await Data.urlArquivo(b.dataset.baixar); } catch (err) { janela?.close(); toast('Não foi possível abrir o arquivo: ' + err.message); }
+  });
+  // Ler agora: lê os números de um arquivo recebido e cria a versão para conferência
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ler]');
+    const envio = b && S.envios.find((x) => x.id === b.dataset.ler);
+    if (!envio) return;
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>Lendo…';
+    try {
+      await Data.processarEnvio(envio);
+      toast('Relatório lido. A nova versão está aguardando conferência.');
+      rota();
+    } catch (err) { b.disabled = false; b.textContent = 'Ler agora'; toast(err.message); }
   });
   rota();
 

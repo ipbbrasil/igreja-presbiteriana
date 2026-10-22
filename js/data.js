@@ -74,12 +74,12 @@ window.Data = (() => {
   async function carregar() {
     if (state.modo === 'local') return carregarLocal();
     const { data, error } = await sb.from('relatorios')
-      .select('id, ano, status, arquivo, tipo_pdf, modelo, dados, extraido_em, igrejas(codigo, nome, cidade, uf, organizacao), presbiterios(nome, sigla, sinodos(nome, sigla)), alertas(nivel, campo, mensagem), historico_status(status, comentario, criado_em)')
+      .select('id, ano, versao, status, arquivo, tipo_pdf, modelo, dados, extraido_em, igrejas(codigo, nome, cidade, uf, organizacao), presbiterios(nome, sigla, sinodos(nome, sigla)), alertas(nivel, campo, mensagem), historico_status(status, comentario, criado_em)')
       .eq('ano', state.ano)
       .neq('status', 'substituido');
     if (error) throw error;
     state.relatorios = data.map((r) => ({
-      id: r.id, ano: r.ano, status: r.status, arquivo: r.arquivo, tipo_pdf: r.tipo_pdf, modelo: r.modelo,
+      id: r.id, ano: r.ano, versao: r.versao, status: r.status, arquivo: r.arquivo, tipo_pdf: r.tipo_pdf, modelo: r.modelo,
       extraido_em: r.extraido_em,
       igreja: r.igrejas,
       dados: r.dados,
@@ -138,7 +138,7 @@ window.Data = (() => {
     const mime = analise.formato === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     const up = await sb.storage.from('relatorios').upload(caminho, file, { contentType: mime, upsert: false });
     if (up.error) throw new Error('Falha no upload: ' + up.error.message);
-    const { error } = await sb.rpc('registrar_envio', {
+    const { data: envioId, error } = await sb.rpc('registrar_envio', {
       p_igreja: codigo, p_ano: ano, p_caminho: caminho, p_nome: file.name, p_formato: analise.formato,
       p_tipo_pdf: analise.tipo_pdf, p_tamanho: file.size, p_sha256: analise.sha256,
       p_verificacao: { checks: analise.checks, resumo: analise.resumo },
@@ -147,7 +147,26 @@ window.Data = (() => {
       await sb.storage.from('relatorios').remove([caminho]); // não deixa arquivo órfão
       throw new Error(error.message);
     }
-    await carregarEnvios();
+    // Leitura feita no navegador: grava como nova versão "aguardando conferência".
+    // Se falhar, o arquivo continua recebido e a administração pode usar "Ler agora".
+    let lido = false;
+    if (analise.leitura?.ok) {
+      const r = await sb.rpc('processar_envio', { p_envio: envioId, p_dados: analise.leitura.dados, p_alertas: analise.leitura.alertas, p_modelo: analise.leitura.modelo });
+      lido = !r.error;
+    }
+    await carregar();
+    return { lido };
+  }
+
+  // Lê de novo um arquivo já enviado (PDF digital) e grava o resultado
+  async function processarEnvio(envio) {
+    const { data: blob, error } = await sb.storage.from('relatorios').download(envio.caminho);
+    if (error) throw new Error('Não foi possível baixar o arquivo: ' + error.message);
+    const leitura = await Envio.lerArquivo(await blob.arrayBuffer(), { sinodo: state.sinodo?.sigla, presbiterio: state.presbiterio?.sigla });
+    if (!leitura.ok) throw new Error('Não foi possível ler os números deste documento. A conferência precisa ser manual.');
+    const r = await sb.rpc('processar_envio', { p_envio: envio.id, p_dados: leitura.dados, p_alertas: leitura.alertas, p_modelo: leitura.modelo });
+    if (r.error) throw new Error(r.error.message);
+    await carregar();
   }
 
   async function urlArquivo(caminho) {
@@ -174,6 +193,6 @@ window.Data = (() => {
 
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
-    envioExiste, enviarRelatorio, urlArquivo,
+    envioExiste, enviarRelatorio, processarEnvio, urlArquivo,
   };
 })();
