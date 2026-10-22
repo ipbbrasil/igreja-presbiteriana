@@ -111,8 +111,9 @@
           <button class="btn" data-papel="representante">Representante de igreja</button>
         </div>` : `
         <form id="f-login" class="form">
-          <label>E-mail<input type="email" name="email" autocomplete="username" required></label>
-          <label>Senha<input type="password" name="senha" autocomplete="current-password" required></label>
+          <label>E-mail<input type="email" name="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" required></label>
+          <label>Senha<input type="password" name="senha" id="senha" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
+          <label class="conf"><input type="checkbox" id="ver-senha"> Mostrar senha</label>
           <button class="btn primary" type="submit">Entrar</button>
         </form>`}
     </div>`);
@@ -123,11 +124,14 @@
         rota();
       }));
     } else {
+      document.getElementById('ver-senha').addEventListener('change', (e) => { document.getElementById('senha').type = e.target.checked ? 'text' : 'password'; });
       document.getElementById('f-login').addEventListener('submit', async (e) => {
         e.preventDefault();
         const f = new FormData(e.target);
-        const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Entrando…';
-        try { await Data.entrar(f.get('email'), f.get('senha')); ui.carregado = false; location.hash = '#/'; rota(); } catch (err) { telaLogin(err.message); }
+        const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Entrando…';
+        // Teclados de celular costumam pôr maiúscula inicial ou espaço no fim do e-mail
+        const email = String(f.get('email') || '').trim().toLowerCase();
+        try { await Data.entrar(email, f.get('senha')); ui.carregado = false; location.hash = '#/'; rota(); } catch (err) { telaLogin(err.message); }
       });
     }
   }
