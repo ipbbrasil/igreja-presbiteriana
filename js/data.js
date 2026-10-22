@@ -106,17 +106,42 @@ window.Data = (() => {
     const ev = await sb.from('exercicio_eventos').select('acao, comentario, criado_em').eq('presbiterio_id', presb).eq('ano', state.ano).order('criado_em');
     if (!ev.error) state.eventosExercicio = ev.data; // tabela só existe depois do 006_exercicio.sql
     if (state.perfil.papel === 'representante') return;
-    const vi = await sb.from('vinculos_igreja').select('igrejas(codigo, nome, cidade, uf, organizacao)').eq('presbiterio_id', presb).is('fim', null);
-    if (!vi.error) state.cadastradas = vi.data.map((v) => v.igrejas).filter(Boolean);
+    const vi = await sb.from('vinculos_igreja').select('inicio, igrejas(id, codigo, nome, tipo, igreja_mae_id, cidade, uf, organizacao, situacao)').eq('presbiterio_id', presb).is('fim', null);
+    if (!vi.error) state.cadastradas = vi.data.filter((v) => v.igrejas).map((v) => ({ ...v.igrejas, vinculo_inicio: v.inicio }));
     const comRelatorio = new Set(state.relatorios.map((r) => r.igreja.codigo));
-    for (const i of state.cadastradas) if (!state.igrejas.some((x) => x.codigo === i.codigo) && !comRelatorio.has(i.codigo)) state.igrejas.push(i);
+    for (const i of enviamRelatorio()) if (!state.igrejas.some((x) => x.codigo === i.codigo) && !comRelatorio.has(i.codigo)) state.igrejas.push(i);
   }
 
+  // Quem envia relatório próprio: igrejas ativas e congregações presbiteriais (sem igreja-mãe).
+  // Congregações de uma igreja entram no relatório da igreja-mãe (anexo "Congregação").
+  const enviamRelatorio = () => state.cadastradas.filter((i) => i.situacao !== 'inativa' && (i.tipo !== 'congregacao' || !i.igreja_mae_id));
   const exercicioFechado = () => state.exercicio?.situacao === 'fechado';
   const naoEnviadas = () => {
     const comRelatorio = new Set(state.relatorios.map((r) => r.igreja.codigo));
-    return state.cadastradas.filter((i) => !comRelatorio.has(i.codigo));
+    return enviamRelatorio().filter((i) => !comRelatorio.has(i.codigo));
   };
+
+  // ---------- Cadastro institucional ----------
+  async function listarPresbiterios() {
+    const { data, error } = await sb.from('presbiterios').select('id, nome, sigla, sinodos(sigla)').order('nome');
+    if (error) throw new Error(error.message);
+    return data;
+  }
+  async function listarAuditoria() {
+    const { data, error } = await sb.from('auditoria').select('acao, alvo, detalhe, criado_em').eq('presbiterio_id', state.perfil.presbiterio_id).order('criado_em', { ascending: false }).limit(60);
+    return error ? [] : data; // tabela só existe depois do 007_cadastro.sql
+  }
+  async function salvarIgreja(i, novo) {
+    const { error } = await sb.rpc('salvar_igreja', { p_novo: novo, p_codigo: i.codigo, p_nome: i.nome, p_tipo: i.tipo, p_cidade: i.cidade || null,
+      p_uf: i.uf || null, p_organizacao: i.organizacao || null, p_igreja_mae: i.igreja_mae || null, p_situacao: i.situacao });
+    if (error) throw new Error(error.message);
+    await carregar();
+  }
+  async function transferirIgreja({ codigo, destino, data, motivo }) {
+    const { error } = await sb.rpc('transferir_igreja', { p_codigo: codigo, p_destino: destino, p_data: data, p_motivo: motivo });
+    if (error) throw new Error(error.message);
+    await carregar();
+  }
 
   async function fecharExercicio(comentario) {
     if (state.modo === 'local') { state.exercicio = { situacao: 'fechado', fechado_em: new Date().toISOString(), comentario }; state.eventosExercicio.push({ acao: 'fechado', comentario, criado_em: new Date().toISOString() }); return; }
@@ -293,7 +318,8 @@ window.Data = (() => {
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
-    exercicioFechado, naoEnviadas, fecharExercicio, reabrirExercicio,
+    exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
+    listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();

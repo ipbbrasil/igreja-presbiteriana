@@ -262,7 +262,7 @@
     for (const r of todos) porStatus[r.status] = (porStatus[r.status] || 0) + 1;
     const faltam = Data.naoEnviadas();
     if (faltam.length) porStatus.nao_enviado = faltam.length;
-    const cadastradas = Math.max(S.cadastradas.length, todos.length);
+    const cadastradas = Math.max(Data.enviamRelatorio().length, todos.length);
     const fechado = Data.exercicioFechado();
     const segs = ORDEM_STATUS.filter((s) => porStatus[s]).map((s) => `<span class="cs-seg st-${STATUS[s].cls}" style="flex:${porStatus[s]}" data-tip="${STATUS[s].label}: ${porStatus[s]}"></span>`).join('');
     const chipsStatus = ORDEM_STATUS.filter((s) => porStatus[s]).map((s) => `<a class="cob-i" href="#/pendencias">${chip(s)}<strong>${porStatus[s]}</strong></a>`).join('');
@@ -405,7 +405,8 @@
     const faltam = Data.naoEnviadas().length;
     return {
       title: 'Igrejas', sub: `${rels.length} relatórios${faltam ? ` · ${faltam} não enviados` : ''} · ${S.ano}`,
-      body: `${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
+      body: `<div class="btns">${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
+        ${S.perfil.papel === 'admin_presbiterial' ? `<a class="btn" href="#/cadastro">${ic('igrejas')}Cadastro de igrejas</a>` : ''}</div>
         <label class="busca">${ic('busca')}<input type="search" id="q" placeholder="Buscar igreja ou cidade" autocomplete="off"></label>
         <div class="lista" id="lista">${itens}</div><p class="vazio" id="nada" hidden>Nenhuma igreja encontrada.</p>`,
       after: () => {
@@ -1027,7 +1028,7 @@
   function quadroExercicio() {
     const fechado = Data.exercicioFechado();
     const todos = S.relatorios, validados = todos.filter((r) => r.status === 'validado').length;
-    const cadastradas = Math.max(S.cadastradas.length, todos.length), faltam = Data.naoEnviadas().length;
+    const cadastradas = Math.max(Data.enviamRelatorio().length, todos.length), faltam = Data.naoEnviadas().length;
     const eventos = S.eventosExercicio.slice().reverse().map((e) => `<li><span class="chip ${e.acao === 'fechado' ? 'good' : 'warning'}"><b aria-hidden="true">${e.acao === 'fechado' ? '■' : '↺'}</b>${e.acao === 'fechado' ? 'Fechado' : 'Reaberto'}</span>
       <div>${e.comentario ? esc(e.comentario) : ''}<small>${fmt.dataHora(e.criado_em)}</small></div></li>`).join('');
     const pode = Data.podeValidar() && S.perfil.papel === 'admin_presbiterial';
@@ -1051,7 +1052,7 @@
   function ligarExercicio() {
     document.getElementById('ex-fechar')?.addEventListener('click', () => {
       const pend = S.relatorios.filter((r) => r.status !== 'validado'), faltam = Data.naoEnviadas();
-      const validados = S.relatorios.length - pend.length, cadastradas = Math.max(S.cadastradas.length, S.relatorios.length);
+      const validados = S.relatorios.length - pend.length, cadastradas = Math.max(Data.enviamRelatorio().length, S.relatorios.length);
       const el = abrirPainel(`Fechar o exercício ${S.ano}`, `
         <p>Ao fechar, os números <strong>validados</strong> passam a ser o <strong>resultado oficial</strong> do exercício: ${validados} de ${cadastradas} igrejas.</p>
         ${pend.length || faltam.length ? `<div class="banner warning" role="note"><b>!</b><div><strong>Ficarão fora do resultado oficial:</strong>
@@ -1152,6 +1153,98 @@
         });
       },
     };
+  }
+
+  // ---------- Cadastro institucional ----------
+  const tipoUnidade = (i, porId) => (i.tipo === 'congregacao'
+    ? (i.igreja_mae_id ? `Congregação de ${nomeCurto(porId[i.igreja_mae_id]?.nome || '—')}` : 'Congregação presbiterial')
+    : 'Igreja organizada');
+
+  function telaCadastro() {
+    if (S.modo === 'local') return { title: 'Cadastro de igrejas', back: '#/igrejas', body: card('', '<p>O cadastro institucional funciona apenas no site publicado.</p>') };
+    const porId = Object.fromEntries(S.cadastradas.map((i) => [i.id, i]));
+    const ordem = [...S.cadastradas].sort((a, b) => (a.situacao === 'inativa') - (b.situacao === 'inativa') || a.nome.localeCompare(b.nome, 'pt-BR'));
+    const itens = ordem.map((i) => `<li>
+        <div class="env-m"><strong>${esc(i.nome)}</strong>
+          <span class="muted small">${esc(tipoUnidade(i, porId))} · ${esc(i.cidade || '—')}${i.uf ? ` · ${esc(i.uf)}` : ''} · código ${esc(i.codigo)}</span>
+          <span class="muted small">No presbitério desde ${fmt.data(i.vinculo_inicio)}${i.organizacao ? ` · organizada em ${fmt.data(i.organizacao)}` : ''}</span>
+          <div class="item-s">${i.situacao === 'inativa' ? '<span class="flag">inativa</span>' : '<span class="flag ok">ativa</span>'}</div>
+          <div class="btns"><button class="btn" data-editar="${esc(i.codigo)}">Editar</button><button class="btn" data-transferir="${esc(i.codigo)}">Transferir</button></div>
+        </div></li>`).join('');
+    const body = `
+      <p class="nota top">Igrejas e congregações sob a jurisdição deste presbitério. Congregações de uma igreja entram no relatório da igreja-mãe; congregações presbiteriais (ligadas direto ao presbitério) enviam relatório próprio. Toda alteração fica registrada.</p>
+      <button class="btn primary" id="cad-nova">+ Nova igreja ou congregação</button>
+      ${card(`Unidades cadastradas (${S.cadastradas.length})`, itens ? `<ul class="envios">${itens}</ul>` : '<p class="vazio">Nenhuma unidade cadastrada.</p>')}
+      <section class="card"><header class="card-h"><h2>Registro de alterações</h2><p>Cadastros, alterações e transferências</p></header><div id="aud"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>`;
+
+    return {
+      title: 'Cadastro de igrejas', sub: esc(S.presbiterio?.nome || ''), back: '#/igrejas', body,
+      after: async () => {
+        document.getElementById('cad-nova').addEventListener('click', () => formUnidade(null, porId));
+        $app.querySelectorAll('[data-editar]').forEach((b) => b.addEventListener('click', () => formUnidade(S.cadastradas.find((i) => i.codigo === b.dataset.editar), porId)));
+        $app.querySelectorAll('[data-transferir]').forEach((b) => b.addEventListener('click', () => formTransferir(S.cadastradas.find((i) => i.codigo === b.dataset.transferir))));
+        const aud = await Data.listarAuditoria();
+        const rotulo = { cadastro: 'Cadastro', alteracao: 'Alteração', transferencia: 'Transferência' };
+        const el = document.getElementById('aud');
+        if (el) el.innerHTML = aud.length ? `<ul class="hist">${aud.map((a) => `<li><span class="chip neutral"><b aria-hidden="true">•</b>${rotulo[a.acao] || esc(a.acao)}</span>
+            <div><strong>${esc(a.alvo || '')}</strong> ${esc(a.detalhe || '')}<small>${fmt.dataHora(a.criado_em)}</small></div></li>`).join('')}</ul>` : '<p class="vazio">Nenhuma alteração registrada ainda.</p>';
+      },
+    };
+  }
+
+  function formUnidade(i, porId) {
+    const novo = !i;
+    const maes = S.cadastradas.filter((x) => x.tipo !== 'congregacao' && x.situacao !== 'inativa' && x.codigo !== i?.codigo).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const mae = i?.igreja_mae_id ? porId[i.igreja_mae_id]?.codigo : '';
+    const el = abrirPainel(novo ? 'Nova igreja ou congregação' : `Editar ${esc(i.nome)}`, `
+      <form id="f-uni" class="campos conv">
+        <label class="lbl">Tipo<select name="tipo" id="uni-tipo"><option value="igreja"${i?.tipo !== 'congregacao' ? ' selected' : ''}>Igreja organizada</option><option value="congregacao"${i?.tipo === 'congregacao' ? ' selected' : ''}>Congregação</option></select></label>
+        <label class="lbl" id="uni-mae">Vinculada a<select name="igreja_mae"><option value="">Direto ao presbitério (congregação presbiterial)</option>${maes.map((m) => `<option value="${esc(m.codigo)}"${m.codigo === mae ? ' selected' : ''}>${esc(m.nome)}</option>`).join('')}</select></label>
+        <label class="lbl">Código (sigla única)<input type="text" name="codigo" value="${esc(i?.codigo || '')}" ${novo ? 'required placeholder="Ex.: 4IPC"' : 'readonly'} autocapitalize="characters" maxlength="20"></label>
+        <label class="lbl">Nome oficial<input type="text" name="nome" value="${esc(i?.nome || '')}" required placeholder="Ex.: 4ª Igreja Presbiteriana de Ceilândia"></label>
+        <label class="lbl">Cidade<input type="text" name="cidade" value="${esc(i?.cidade || '')}"></label>
+        <label class="lbl">UF<input type="text" name="uf" value="${esc(i?.uf || '')}" maxlength="2" autocapitalize="characters"></label>
+        <label class="lbl">Data de organização<input type="date" name="organizacao" value="${esc(i?.organizacao || '')}"></label>
+        <label class="lbl">Situação<select name="situacao"><option value="ativa">Ativa</option><option value="inativa"${i?.situacao === 'inativa' ? ' selected' : ''}>Inativa</option></select></label>
+        <button class="btn primary" type="submit">${novo ? 'Cadastrar' : 'Salvar alterações'}</button>
+      </form>
+      <p class="nota">${novo ? 'A unidade entra no presbitério a partir de hoje. Se for igreja ou congregação presbiterial, passa a aparecer como “Não enviado” até mandar o relatório.' : 'O código não muda, para preservar o histórico. Unidades inativas deixam de ser cobradas no envio, mas o histórico permanece.'}</p>`);
+    const $tipo = el.querySelector('#uni-tipo'), $mae = el.querySelector('#uni-mae');
+    const ajustar = () => { $mae.hidden = $tipo.value !== 'congregacao'; };
+    $tipo.addEventListener('change', ajustar); ajustar();
+    el.querySelector('#f-uni').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Salvando…';
+      try {
+        await Data.salvarIgreja({ ...f, igreja_mae: f.tipo === 'congregacao' ? f.igreja_mae : null }, novo);
+        fecharPainel(); toast(novo ? 'Unidade cadastrada.' : 'Cadastro atualizado.'); ui.carregado = true; rota();
+      } catch (err) { toast(err.message); btn.disabled = false; btn.textContent = novo ? 'Cadastrar' : 'Salvar alterações'; }
+    });
+  }
+
+  async function formTransferir(i) {
+    const el = abrirPainel(`Transferir ${esc(i.nome)}`, '<div class="carregando dark"><span class="spin"></span>Carregando presbitérios…</div>');
+    let presbs = [];
+    try { presbs = (await Data.listarPresbiterios()).filter((p) => p.sigla !== S.presbiterio?.sigla); } catch (e) { /* lista vazia */ }
+    const hoje = new Date().toISOString().slice(0, 10);
+    el.querySelector('.sheet-c').innerHTML = presbs.length ? `
+      <p>A igreja passa para outro presbitério a partir da data informada. <strong>Os relatórios já existentes continuam ligados a este presbitério</strong> (jurisdição de cada exercício); os próximos irão para o novo.${S.cadastradas.some((c) => c.igreja_mae_id === i.id) ? ' As congregações desta igreja vão junto.' : ''}</p>
+      <form id="f-tr" class="campos conv">
+        <label class="lbl">Presbitério de destino<select name="destino" required><option value="">Selecione…</option>${presbs.map((p) => `<option value="${esc(p.sigla)}">${esc(p.nome)} (${esc(p.sigla)}${p.sinodos ? ` · ${esc(p.sinodos.sigla)}` : ''})</option>`).join('')}</select></label>
+        <label class="lbl">Data da transferência<input type="date" name="data" value="${hoje}" required></label>
+        <label class="lbl">Motivo / ato que aprovou (obrigatório)<textarea name="motivo" rows="2" required placeholder="Ex.: resolução do Sínodo, reunião de 10/03/2026"></textarea></label>
+        <button class="btn danger" type="submit">Confirmar transferência</button>
+      </form>`
+      : '<p>Não há outro presbitério cadastrado na plataforma para receber a igreja. Novos presbitérios e sínodos são cadastrados pelo responsável técnico.</p>';
+    el.querySelector('#f-tr')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      if (!window.confirm(`Transferir ${i.nome} para ${f.destino}? Depois disso ela sai da lista deste presbitério.`)) return;
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+      try { await Data.transferirIgreja({ codigo: i.codigo, destino: f.destino, data: f.data, motivo: f.motivo.trim() }); fecharPainel(); toast('Transferência registrada.'); rota(); }
+      catch (err) { toast(err.message); btn.disabled = false; }
+    });
   }
 
   // ---------- Usuários e convites ----------
@@ -1293,7 +1386,9 @@
           ${S.perfil.igreja_codigo ? `<span class="muted">Igreja: ${esc(relPorCodigo(S.perfil.igreja_codigo)?.igreja.nome || S.perfil.igreja_codigo)}</span>` : ''}</div></div>`)}
         <div class="lista">
           ${S.perfil.papel === 'admin_presbiterial' ? `<a class="item" href="#/usuarios">
-            <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a>` : ''}
+            <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a>
+          <a class="item" href="#/cadastro">
+            <div class="item-m"><strong>Cadastro de igrejas</strong><span class="muted">Igrejas, congregações, transferências de presbitério</span></div>${ic('seta', 'chev')}</a>` : ''}
           <a class="item" href="#/ajuda">
             <div class="item-m"><strong>Ajuda</strong><span class="muted">Tudo o que o aplicativo faz, passo a passo e configurações</span></div>${ic('seta', 'chev')}</a>
           <a class="item" href="#/dicionario">
@@ -1368,6 +1463,9 @@
       case 'ajuda':
         return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');
       case 'dicionario': return render(telaDicionario(), 'perfil');
+      case 'cadastro':
+        if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/igrejas'); return; }
+        return render(telaCadastro(), 'igrejas');
       case 'usuarios':
         if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/perfil'); return; }
         return render(telaUsuarios(), 'perfil');

@@ -198,6 +198,19 @@ window.Ajuda = (() => {
       </ul>`,
     },
     {
+      id: 'cadastro', titulo: 'Cadastro de igrejas, congregações e transferências', para: ['admin'], html: `
+      <p>Em <strong>Igrejas → Cadastro de igrejas</strong> (ou Perfil → Cadastro de igrejas).</p>
+      <ul>
+        <li><strong>Nova igreja ou congregação:</strong> tipo, código (sigla única, ex.: 4IPC), nome oficial, cidade, UF, data de organização e situação. Ela entra no presbitério a partir do dia do cadastro.</li>
+        <li><strong>Congregação de uma igreja:</strong> escolha a igreja-mãe. Ela entra no relatório da igreja-mãe (aba “Congregação”) e não é cobrada separadamente — assim nada é contado duas vezes.</li>
+        <li><strong>Congregação presbiterial:</strong> ligada direto ao presbitério; envia relatório próprio e aparece como “Não enviado” até mandar.</li>
+        <li><strong>Editar:</strong> nome, cidade, UF, data, tipo e situação. O código não muda, para preservar o histórico. Unidade <strong>inativa</strong> deixa de ser cobrada, mas o histórico permanece.</li>
+        <li><strong>Transferir:</strong> passa a igreja para outro presbitério a partir de uma data, com o motivo ou ato que aprovou. Os relatórios já existentes continuam ligados ao presbitério da época; as congregações da igreja vão junto.</li>
+        <li><strong>Registro de alterações:</strong> todo cadastro, alteração e transferência fica registrado com data e detalhes (antes → depois).</li>
+      </ul>
+      <p class="nota">Novos sínodos e presbitérios são cadastrados pelo responsável técnico.</p>`,
+    },
+    {
       id: 'sinodo', titulo: 'Visão do sínodo', para: ['admin'], html: `
       <p>Mostra os presbitérios cadastrados e os totais do sínodo, somente com relatórios validados. Enquanto apenas um presbitério estiver na plataforma, os números aparecem marcados como <strong>parciais</strong>.</p>`,
     },
