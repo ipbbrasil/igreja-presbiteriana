@@ -1,0 +1,13 @@
+# Dados reais das igrejas — NUNCA publicar
+dados/
+formuários/
+formularios/
+*.pdf
+*.xlsx
+
+# Seeds gerados com dados reais
+supabase/seed.sql
+
+# Sistema
+Thumbs.db
+.DS_Store
