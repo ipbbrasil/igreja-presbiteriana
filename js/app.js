@@ -19,6 +19,7 @@
     busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
     enviar: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
     baixar: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
+    ajuda: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.5"/><path d="M12 17h.01"/>',
   };
   const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
@@ -87,6 +88,7 @@
         ${v.back ? `<a class="ab-back" href="${v.back}" aria-label="Voltar">${ic('voltar')}</a>` : ''}
         <div class="ab-t">${v.sub ? `<small>${v.sub}</small>` : ''}<h1>${v.title}</h1></div>
         ${S.modo === 'local' ? '<span class="modo" title="Dados lidos do arquivo local">local</span>' : ''}
+        ${ativo !== 'ajuda' ? `<a class="ab-help" href="#/ajuda" aria-label="Ajuda" title="Ajuda">${ic('ajuda')}</a>` : ''}
       </header>
       <main class="content" id="conteudo">${v.body}</main>
     </div>`;
@@ -116,6 +118,7 @@
           <label class="conf"><input type="checkbox" id="ver-senha"> Mostrar senha</label>
           <button class="btn primary" type="submit">Entrar</button>
         </form>`}
+      <a class="login-ajuda" href="#/ajuda">${ic('ajuda')}Como funciona o sistema?</a>
     </div>`);
     if (local) {
       $app.querySelectorAll('[data-papel]').forEach((b) => b.addEventListener('click', () => {
@@ -925,8 +928,12 @@
           <div class="avatar">${ic('perfil')}</div>
           <div><strong>${esc(S.usuario?.nome || '')}</strong><span class="muted">${PAPEIS[S.perfil.papel] || S.perfil.papel}</span>
           ${S.perfil.igreja_codigo ? `<span class="muted">Igreja: ${esc(relPorCodigo(S.perfil.igreja_codigo)?.igreja.nome || S.perfil.igreja_codigo)}</span>` : ''}</div></div>`)}
-        ${S.perfil.papel === 'admin_presbiterial' ? `<div class="lista"><a class="item" href="#/usuarios">
-            <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a></div>` : ''}
+        <div class="lista">
+          ${S.perfil.papel === 'admin_presbiterial' ? `<a class="item" href="#/usuarios">
+            <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a>` : ''}
+          <a class="item" href="#/ajuda">
+            <div class="item-m"><strong>Ajuda</strong><span class="muted">Tudo o que o aplicativo faz, passo a passo e configurações</span></div>${ic('seta', 'chev')}</a>
+        </div>
         ${local ? card('Simular outro perfil', `<div class="perfis">
             ${['admin_presbiterial', 'admin_sinodal', 'representante'].map((p) => `<button class="btn${S.perfil.papel === p ? ' primary' : ''}" data-papel="${p}">${PAPEIS[p]}</button>`).join('')}
           </div>`, { sub: 'Disponível apenas no modo local' }) : ''}
@@ -957,6 +964,13 @@
       renderSimples('<div class="carregando"><span class="spin"></span>Carregando…</div>');
       try { await Data.sessaoAtual(); } catch (e) { return telaLogin(e.message); }
     }
+    if (!S.perfil && location.hash.startsWith('#/ajuda')) {
+      // Ajuda aberta da tela de login (sem usuário)
+      $app.innerHTML = `<div class="aj-solo"><header class="aj-solo-h"><a href="#/" class="btn">${ic('voltar')}Voltar ao login</a>
+        <img src="icons/logo_ipb.png" alt="Igreja Presbiteriana do Brasil"></header><h1>Ajuda</h1>${Ajuda.html(null)}</div>`;
+      window.scrollTo(0, 0);
+      return Ajuda.ligar($app);
+    }
     if (!S.perfil) return telaLogin();
     if (!ui.carregado) {
       renderSimples('<div class="carregando"><span class="spin"></span>Carregando relatórios…</div>');
@@ -966,7 +980,7 @@
     }
     const [p0 = '', p1, p2] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     const rep = S.perfil.papel === 'representante';
-    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
+    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar' || p0 === 'ajuda')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     if (p0 === 'igreja' && rep && p1 !== S.perfil.igreja_codigo) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     switch (p0) {
       case '': return render(telaPresbiterio(), 'inicio');
@@ -986,6 +1000,8 @@
       }
       case 'sinodo': return render(telaSinodo(), 'sinodo');
       case 'perfil': return render(telaPerfil(), 'perfil');
+      case 'ajuda':
+        return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');
       case 'usuarios':
         if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/perfil'); return; }
         return render(telaUsuarios(), 'perfil');

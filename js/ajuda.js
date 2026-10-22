@@ -1,0 +1,267 @@
+// Central de ajuda: o que o aplicativo faz, passo a passo de cada função e todas as configurações.
+// Cada tópico indica para quem vale; a busca filtra pelo texto.
+window.Ajuda = (() => {
+  const chip = (s) => { const x = Regras.STATUS[s]; return `<span class="chip ${x.cls}"><b aria-hidden="true">${x.icon}</b>${x.label}</span>`; };
+  const PARA = { todos: 'Todos', admin: 'Administrador', rep: 'Representante', tec: 'Responsável técnico' };
+
+  const TOPICOS = [
+    {
+      id: 'visao', titulo: 'O que é o sistema', para: ['todos'], html: `
+      <p>Plataforma para <strong>receber, conferir e consolidar</strong> os relatórios estatísticos anuais das igrejas (modelo oficial CSM-IPB “Informações Cadastrais e Estatísticas de Comunidade Presbiteriana”).</p>
+      <p>A organização segue a estrutura da IPB: <strong>Igrejas → Presbitério → Sínodo → Nacional</strong>. Cada pessoa só vê o que corresponde ao seu acesso.</p>
+      <h4>O ciclo de um relatório</h4>
+      <ol class="aj-passos">
+        <li><strong>Convite:</strong> o administrador do presbitério convida o representante da igreja.</li>
+        <li><strong>Envio:</strong> o representante envia o relatório (PDF ou Excel) pelo site; o arquivo é conferido antes de sair do aparelho.</li>
+        <li><strong>Leitura:</strong> os números do PDF digital são lidos automaticamente; PDF escaneado ou Excel são digitados pelo administrador.</li>
+        <li><strong>Conferência:</strong> o sistema refaz 14 somas e aponta divergências e problemas do documento.</li>
+        <li><strong>Decisão:</strong> o administrador valida ou pede correção. Tudo fica no histórico.</li>
+        <li><strong>Consolidação:</strong> os relatórios validados formam os totais do presbitério e do sínodo, que podem ser exportados.</li>
+      </ol>
+      <div class="banner info"><b>i</b><div><strong>Regra de ouro:</strong> campo vazio no relatório é <em>não informado</em> — nunca é tratado como zero. Por isso cada total mostra quantas igrejas contribuíram (ex.: “10 de 11 igrejas”).</div></div>`,
+    },
+    {
+      id: 'perfis', titulo: 'Perfis de acesso: quem pode o quê', para: ['todos'], html: `
+      <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Função</th><th>Representante</th><th>Adm. presbitério</th><th>Adm. sínodo</th></tr></thead><tbody>
+        <tr><td>Ver dados da própria igreja</td><td>✓</td><td>✓</td><td>✓</td></tr>
+        <tr><td>Ver todas as igrejas do presbitério</td><td>—</td><td>✓</td><td>✓</td></tr>
+        <tr><td>Enviar relatório</td><td>só da própria igreja</td><td>de qualquer igreja do presbitério</td><td>—</td></tr>
+        <tr><td>Ler agora (leitura automática)</td><td>✓ (próprios envios)</td><td>✓</td><td>—</td></tr>
+        <tr><td>Digitar / corrigir dados</td><td>—</td><td>✓</td><td>—</td></tr>
+        <tr><td>Validar ou pedir correção</td><td>—</td><td>✓</td><td>—</td></tr>
+        <tr><td>Exportar Excel / PDF</td><td>—</td><td>✓</td><td>✓</td></tr>
+        <tr><td>Convidar e remover usuários</td><td>—</td><td>✓</td><td>—</td></tr>
+        <tr><td>Visão do sínodo</td><td>—</td><td>✓</td><td>✓</td></tr>
+      </tbody></table></div>
+      <p class="nota">O menu se adapta ao perfil: o representante vê <em>Minha igreja, Enviar, Perfil</em>; o administrador vê <em>Presbitério, Igrejas, Conferência, Sínodo, Perfil</em>.</p>`,
+    },
+    {
+      id: 'entrar', titulo: 'Entrar, sair e senha', para: ['todos'], html: `
+      <ul>
+        <li><strong>Entrar:</strong> e-mail e senha cadastrados. Marque <em>Mostrar senha</em> para conferir o que digitou.</li>
+        <li><strong>Primeiro acesso:</strong> é feito pelo <strong>link de convite</strong> enviado pelo administrador (veja “Usuários e convites”).</li>
+        <li><strong>Sair:</strong> Perfil → <em>Sair</em>. Use sempre que trocar de usuário no mesmo aparelho.</li>
+        <li><strong>Esqueci a senha:</strong> peça ao administrador do presbitério; o responsável técnico redefine a senha e você entra com a nova.</li>
+      </ul>`,
+    },
+    {
+      id: 'painel', titulo: 'Painel do presbitério', para: ['admin'], html: `
+      <p>Tela inicial do administrador com os números consolidados do exercício.</p>
+      <ul>
+        <li><strong>Somente validados / Todos recebidos:</strong> escolhe quais relatórios entram nos totais. O padrão é <em>somente validados</em>; “todos” mostra um aviso de que inclui dados não conferidos. Essa escolha vale também para a exportação.</li>
+        <li><strong>Membros, comungantes e não comungantes:</strong> com a variação do ano (calculada só com igrejas que informaram os dois anos).</li>
+        <li><strong>Recebimento dos relatórios:</strong> barra com a situação de cada relatório; toque para ir à Conferência.</li>
+        <li><strong>Indicadores:</strong> Escola Dominical (alunos e professores), receita e despesa realizadas. Abaixo de cada um: “n de m igrejas” que informaram.</li>
+        <li><strong>Gráficos por igreja:</strong> comungantes e receita. Toque em uma igreja para abrir a página dela.</li>
+        <li><strong>Movimentação de comungantes:</strong> admissões e demissões por tipo e o saldo do período.</li>
+        <li><strong>Composição das despesas</strong> e <strong>Liderança formal</strong> (pastores, presbíteros, diáconos…).</li>
+        <li><strong>Exportar:</strong> planilha Excel e resumo em PDF (veja “Exportação”).</li>
+      </ul>`,
+    },
+    {
+      id: 'igreja', titulo: 'Igrejas e a página de cada igreja', para: ['todos'], html: `
+      <p><strong>Igrejas</strong> (administrador): lista com busca por nome, situação de cada relatório e botão <em>Enviar relatório</em>. O representante vai direto para <strong>Minha igreja</strong>.</p>
+      <h4>Abas da página da igreja</h4>
+      <ul>
+        <li><strong>Visão geral:</strong> rol de membros, comungantes, Escola Dominical, finanças e liderança.</li>
+        <li><strong>Membresia:</strong> admissões e demissões por tipo e sexo, evolução do ano anterior para o atual.</li>
+        <li><strong>Educação:</strong> Escola Dominical e departamentos internos (UCP, UPA, UMP, SAF, UPH).</li>
+        <li><strong>Finanças:</strong> receitas e despesas — realizado no ano e previsão para o próximo.</li>
+        <li><strong>Conferência:</strong> verificações de soma, alertas da leitura, origem dos dados, arquivos enviados e histórico. O número na aba indica pendências.</li>
+      </ul>
+      <p class="nota">Em todas as tabelas, “—” significa <em>não informado</em> e 0 significa <em>informado como zero</em>.</p>`,
+    },
+    {
+      id: 'enviar', titulo: 'Enviar relatório', para: ['rep', 'admin'], html: `
+      <ol class="aj-passos">
+        <li><strong>Relatório:</strong> escolha a igreja (o representante já vem com a sua) e o exercício.</li>
+        <li><strong>Arquivo:</strong> toque para escolher o relatório preenchido no modelo oficial — <strong>PDF ou Excel (.xlsx), até 10 MB</strong>.</li>
+        <li><strong>Verificação:</strong> o arquivo é analisado no próprio aparelho, antes do envio.</li>
+        <li>Marque <em>“Confirmo que este é o relatório oficial aprovado pelo Conselho”</em> e toque em <strong>Enviar relatório</strong>.</li>
+      </ol>
+      <h4>O que é verificado antes do envio</h4>
+      <ul>
+        <li>Formato e tamanho; se o PDF é <strong>digital</strong> (texto) ou <strong>digitalizado</strong> (imagem escaneada).</li>
+        <li>Se é o <strong>modelo oficial</strong> e qual versão (ex.: CSM-IPB 2021 v8.0).</li>
+        <li>Se o <strong>ano</strong> do documento é o exercício escolhido — ano diferente <strong>impede o envio</strong>.</li>
+        <li>Se o <strong>nome da igreja</strong> no documento confere (aviso, não impede).</li>
+        <li>Se o <strong>mesmo arquivo</strong> já foi enviado — duplicado <strong>impede o envio</strong>.</li>
+        <li>Em PDF digital: <strong>leitura dos números</strong> e as <strong>somas</strong>, para você corrigir antes de enviar se algo não fechar.</li>
+      </ul>
+      <p>Verde = ok · amarelo = aviso (pode enviar) · vermelho = impede o envio.</p>
+      <p>O arquivo original fica guardado em uma pasta <strong>privada</strong>; só quem tem acesso à igreja consegue baixá-lo (link temporário de 10 minutos).</p>`,
+    },
+    {
+      id: 'leitura', titulo: 'Leitura automática e versões', para: ['todos'], html: `
+      <p>Em <strong>PDF digital</strong> do modelo oficial, o sistema lê sozinho todos os campos: liderança, estrutura, departamentos, admissões e demissões (por sexo), rol e finanças (realizado e previsto).</p>
+      <ul>
+        <li>A leitura acontece no envio. Se não acontecer, o administrador (ou quem enviou) usa <strong>Ler agora</strong> na lista de envios.</li>
+        <li>Cada leitura cria uma <strong>nova versão</strong> do relatório em <em>Aguardando conferência</em>; a versão anterior vira <em>Substituída</em> e nada é apagado.</li>
+        <li><strong>Alertas da leitura</strong> apontam problemas do documento: erro de planilha (#REF!), sigla de sínodo/presbitério diferente, nome em branco, linhas fora do modelo, versão não identificada.</li>
+        <li><strong>PDF escaneado e Excel</strong> não são lidos automaticamente: o administrador usa <strong>Digitar dados</strong>.</li>
+      </ul>`,
+    },
+    {
+      id: 'conferencia', titulo: 'Conferência e validação', para: ['admin'], html: `
+      <h4>Situações de um relatório</h4>
+      <ul class="aj-status">
+        <li>${chip('recebido')} arquivo chegou, ainda não lido.</li>
+        <li>${chip('aguardando_conferencia')} números lidos ou digitados; falta a decisão do administrador.</li>
+        <li>${chip('aguardando_correcao')} o administrador pediu correção à igreja.</li>
+        <li>${chip('validado')} conferido; entra nos totais “somente validados”.</li>
+        <li>${chip('substituido')} versão antiga, trocada por uma mais nova (fica no histórico).</li>
+      </ul>
+      <h4>As 14 verificações automáticas</h4>
+      <ul>
+        <li>Comungantes e não comungantes: admissões − demissões = diferença; ano anterior + diferença = ano atual.</li>
+        <li>Rol atual = comungantes + não comungantes.</li>
+        <li>Realizado e previsto: soma das receitas = total; saldo anterior + receita = grande total; soma das despesas = total; grande total − despesa = saldo seguinte.</li>
+        <li>Saldo inicial previsto = saldo final realizado.</li>
+      </ul>
+      <p>“Não verificável” aparece quando falta algum dos campos da soma.</p>
+      <h4>Decisão</h4>
+      <ul>
+        <li><strong>Validar relatório</strong> · <strong>Solicitar correção</strong> (comentário obrigatório) · <strong>Voltar para conferência</strong> · <strong>Corrigir dados</strong>.</li>
+        <li>A aba <strong>Conferência</strong> do menu agrupa todos os relatórios por situação e mostra os arquivos recém-recebidos.</li>
+      </ul>`,
+    },
+    {
+      id: 'digitar', titulo: 'Digitação e correção manual', para: ['admin'], html: `
+      <ul>
+        <li><strong>Corrigir dados:</strong> na Conferência de uma igreja. Abre o formulário já preenchido.</li>
+        <li><strong>Digitar dados:</strong> na lista de envios, para PDF escaneado ou Excel. Abre o formulário em branco, com botão para abrir o arquivo original.</li>
+        <li>O formulário segue o modelo oficial: liderança, estrutura, departamentos, comungantes, não comungantes, rol atual e finanças.</li>
+        <li><strong>Campo vazio = não informado.</strong> Valores em reais no formato 1.234,56.</li>
+        <li>Cores: <span class="aj-cor mud">amarelo</span> alterado · <span class="aj-cor inc">sublinhado</span> masc. + fem. ≠ total · <span class="aj-cor inv">vermelho</span> valor inválido (impede salvar).</li>
+        <li>A barra do topo mostra quantas alterações e se as somas conferem, atualizando a cada número.</li>
+        <li>Ao salvar, o relatório volta para <em>Aguardando conferência</em>; o histórico registra quem alterou, quando e cada valor (antes → depois). Uma cópia completa dos dados anteriores fica guardada.</li>
+      </ul>`,
+    },
+    {
+      id: 'exportar', titulo: 'Exportação (Excel e PDF)', para: ['admin'], html: `
+      <p>No fim do painel do presbitério, quadro <strong>Exportar</strong>. Usa os mesmos relatórios do painel (somente validados ou todos).</p>
+      <ul>
+        <li><strong>Planilha Excel</strong> com 7 abas: Resumo, Membresia, Estrutura, Finanças realizado, Finanças previsto e Situação (todas as igrejas). Cada aba de dados termina com <em>Total</em> e <em>Igrejas que informaram</em> (fórmulas). Não informado = célula vazia.</li>
+        <li><strong>Resumo em PDF</strong> (A4, uma página): indicadores consolidados, tabela por igreja com total e relatórios pendentes. Ideal para imprimir ou enviar por WhatsApp.</li>
+      </ul>
+      <p>Os arquivos são gerados no próprio aparelho e baixados direto.</p>`,
+    },
+    {
+      id: 'usuarios', titulo: 'Usuários e convites', para: ['admin'], html: `
+      <p>Em <strong>Perfil → Usuários e convites</strong>.</p>
+      <ol class="aj-passos">
+        <li>Preencha nome, e-mail e o acesso: <strong>Representante de igreja</strong> (escolha a igreja) ou <strong>Administrador do presbitério</strong>.</li>
+        <li>Toque em <strong>Criar convite</strong> e envie o link por <strong>WhatsApp</strong> ou <strong>Copiar link</strong>.</li>
+        <li>A pessoa abre o link, cria a senha (mínimo 8 caracteres) e já entra com o acesso certo. Se já tiver conta com aquele e-mail, usa “Já tenho conta”.</li>
+      </ol>
+      <ul>
+        <li>O convite vale <strong>14 dias</strong>, funciona <strong>uma vez</strong> e só com o <strong>e-mail cadastrado</strong>. Um novo convite para o mesmo e-mail substitui o anterior.</li>
+        <li><strong>Convites pendentes:</strong> reenviar o link ou cancelar.</li>
+        <li><strong>Usuários com acesso:</strong> papel, igreja e último acesso. <strong>Remover</strong> tira o acesso imediatamente (você não pode remover o seu próprio).</li>
+      </ul>`,
+    },
+    {
+      id: 'sinodo', titulo: 'Visão do sínodo', para: ['admin'], html: `
+      <p>Mostra os presbitérios cadastrados e os totais do sínodo, somente com relatórios validados. Enquanto apenas um presbitério estiver na plataforma, os números aparecem marcados como <strong>parciais</strong>.</p>`,
+    },
+    {
+      id: 'instalar', titulo: 'Instalar no celular e atualizar', para: ['todos'], html: `
+      <ul>
+        <li><strong>Android (Chrome):</strong> menu ⋮ → <em>Instalar app</em> ou <em>Adicionar à tela inicial</em>.</li>
+        <li><strong>iPhone (Safari):</strong> botão Compartilhar → <em>Adicionar à Tela de Início</em>.</li>
+        <li>O aplicativo instalado abre em tela cheia, com o ícone da IPB.</li>
+        <li><strong>Atualizar:</strong> as novidades chegam sozinhas; se algo parecer antigo, feche o aplicativo e abra de novo.</li>
+        <li>É preciso internet para entrar, enviar e ver os dados (os dados nunca ficam guardados no aparelho).</li>
+      </ul>`,
+    },
+    {
+      id: 'config', titulo: 'Todas as configurações', para: ['todos', 'tec'], html: `
+      <h4>No aplicativo (qualquer usuário)</h4>
+      <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Configuração</th><th>Onde</th><th>Efeito</th></tr></thead><tbody>
+        <tr><td>Somente validados / Todos recebidos</td><td>Painel do presbitério</td><td>Quais relatórios entram nos totais, gráficos e exportações</td></tr>
+        <tr><td>Exercício do envio</td><td>Enviar → 1. Relatório</td><td>Ano do relatório enviado (deve bater com o documento)</td></tr>
+        <tr><td>Mostrar senha</td><td>Login e convite</td><td>Exibe a senha digitada</td></tr>
+        <tr><td>Sair</td><td>Perfil</td><td>Encerra a sessão neste aparelho</td></tr>
+      </tbody></table></div>
+      <h4>Administrador do presbitério</h4>
+      <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Configuração</th><th>Onde</th><th>Efeito</th></tr></thead><tbody>
+        <tr><td>Convidar usuário (papel e igreja)</td><td>Perfil → Usuários e convites</td><td>Define quem acessa e o que vê</td></tr>
+        <tr><td>Remover acesso / cancelar convite</td><td>Perfil → Usuários e convites</td><td>Retira o acesso imediatamente</td></tr>
+        <tr><td>Situação do relatório</td><td>Igreja → Conferência</td><td>Validar, pedir correção, voltar para conferência</td></tr>
+      </tbody></table></div>
+      <h4>Responsável técnico (Supabase e código)</h4>
+      <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Configuração</th><th>Onde</th><th>Efeito</th></tr></thead><tbody>
+        <tr><td>Endereço e chave pública do Supabase</td><td><code>js/config.js</code> (SUPABASE_URL, SUPABASE_ANON_KEY)</td><td>Banco que o site usa. Use só a chave <em>publishable</em>, nunca a secreta</td></tr>
+        <tr><td>Exercício padrão</td><td><code>js/config.js</code> (ANO_PADRAO)</td><td>Ano exibido no painel</td></tr>
+        <tr><td>Estrutura do banco</td><td>SQL Editor: <code>schema.sql</code>, <code>002_envios</code> a <code>005_usuarios</code></td><td>Tabelas, permissões, pasta privada, funções</td></tr>
+        <tr><td>Confirmação de e-mail</td><td>Authentication → Sign In / Providers → Email → <em>Confirm email</em></td><td>Deve ficar <strong>desligada</strong> para o convite criar a conta na hora</td></tr>
+        <tr><td>Primeiro administrador / perfis manuais</td><td>SQL Editor, tabela <code>perfis</code></td><td>Papel (superadmin, admin_nacional, admin_sinodal, admin_presbiterial, representante) e vínculo</td></tr>
+        <tr><td>Redefinir senha de um usuário</td><td>SQL Editor (<code>auth.users</code>)</td><td>Quando a pessoa não consegue entrar</td></tr>
+        <tr><td>Senha do banco</td><td>Project Settings → Database</td><td>Não é usada pelo site; troque se tiver sido exposta</td></tr>
+        <tr><td>Pasta dos arquivos</td><td>Storage → bucket <code>relatorios</code> (privado, 10 MB, PDF/XLSX)</td><td>Onde ficam os originais enviados</td></tr>
+        <tr><td>Publicação do site</td><td>GitHub → repositório <code>painel-estatistico</code> (GitHub Pages)</td><td>Cada alteração enviada ao repositório atualiza o site</td></tr>
+        <tr><td>Modo local (teste)</td><td><code>?local=1</code> em localhost</td><td>Usa um arquivo no computador, sem Supabase, e permite simular perfis</td></tr>
+      </tbody></table></div>`,
+    },
+    {
+      id: 'problemas', titulo: 'Problemas comuns', para: ['todos'], html: `
+      <dl class="aj-faq">
+        <dt>“E-mail ou senha incorretos”, mas está certo</dt><dd>O celular pode estar preenchendo uma senha salva de outro usuário. Apague o campo, digite à mão e use <em>Mostrar senha</em>.</dd>
+        <dt>“Seu usuário ainda não tem um perfil de acesso”</dt><dd>A conta existe, mas não está ligada a uma igreja ou presbitério. Peça um convite ao administrador e use “Já tenho conta”.</dd>
+        <dt>Convite expirado ou já usado</dt><dd>Peça ao administrador para criar outro convite para o seu e-mail.</dd>
+        <dt>“Exercício não confere” no envio</dt><dd>O ano escrito no documento é diferente do exercício escolhido. Troque o exercício ou envie o relatório correto.</dd>
+        <dt>“Arquivo já enviado”</dt><dd>Esse mesmo arquivo já está no sistema para essa igreja e ano. Se houve correção, envie o arquivo corrigido.</dd>
+        <dt>PDF digitalizado (imagem)</dt><dd>Pode ser enviado, mas os números serão digitados pelo administrador. Sempre que possível, gere o PDF direto do Excel do modelo.</dd>
+        <dt>Somas com divergência</dt><dd>Algum total do relatório não bate com a soma das linhas. Confira o relatório; o administrador pode pedir correção ou corrigir os dados.</dd>
+        <dt>O aplicativo mostra algo antigo</dt><dd>Feche o aplicativo e abra de novo (ou recarregue a página).</dd>
+      </dl>`,
+    },
+    {
+      id: 'glossario', titulo: 'Glossário', para: ['todos'], html: `
+      <dl class="aj-faq">
+        <dt>Comungantes</dt><dd>Membros que fizeram profissão de fé.</dd>
+        <dt>Não comungantes</dt><dd>Membros batizados na infância que ainda não fizeram profissão de fé.</dd>
+        <dt>Rol atual</dt><dd>Comungantes + não comungantes no fim do ano.</dd>
+        <dt>Rol separado</dt><dd>Membros afastados temporariamente do rol, conforme a disciplina.</dd>
+        <dt>Jurisdição / ex-officio</dt><dd>Recebimento de membros por decisão do Conselho, sem carta de transferência.</dd>
+        <dt>Grande total</dt><dd>Saldo do ano anterior + receita do ano.</dd>
+        <dt>Cobertura (“n de m igrejas”)</dt><dd>Quantas igrejas informaram aquele dado; o total soma só essas.</dd>
+        <dt>Versão do relatório</dt><dd>Cada novo envio lido gera uma versão; as antigas ficam como “Substituída”.</dd>
+      </dl>`,
+    },
+  ];
+
+  const MEU = { representante: 'rep', admin_presbiterial: 'admin', admin_sinodal: 'admin', admin_nacional: 'admin', superadmin: 'admin' };
+
+  // papel: papel do usuário logado (ou null na tela de login)
+  function html(papel) {
+    const meu = MEU[papel] || null;
+    const relevante = (t) => !meu || t.para.includes('todos') || t.para.includes(meu);
+    const ordem = [...TOPICOS.filter(relevante), ...TOPICOS.filter((t) => !relevante(t))];
+    return `
+      <div class="busca aj-busca"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input type="search" id="aj-q" placeholder="Buscar na ajuda (ex.: convite, PDF, senha)" aria-label="Buscar na ajuda"></div>
+      <div class="aj-lista">${ordem.map((t, i) => `<details class="card aj" id="aj-${t.id}"${i === 0 ? ' open' : ''}>
+          <summary><span>${t.titulo}</span><small>${t.para.map((p) => PARA[p]).join(' · ')}</small></summary>
+          <div class="aj-c">${t.html}</div></details>`).join('')}</div>
+      <p class="vazio" id="aj-nada" hidden>Nada encontrado. Tente outra palavra.</p>`;
+  }
+
+  // Busca: mostra só os tópicos que contêm o texto e já os abre
+  function ligar(raiz) {
+    const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const $q = raiz.querySelector('#aj-q');
+    $q.addEventListener('input', () => {
+      const q = norm($q.value.trim());
+      let n = 0;
+      raiz.querySelectorAll('details.aj').forEach((d) => {
+        const ok = !q || norm(d.textContent).includes(q);
+        d.hidden = !ok; if (ok) n++;
+        if (q) d.open = ok;
+      });
+      raiz.querySelector('#aj-nada').hidden = n > 0;
+    });
+  }
+
+  return { html, ligar };
+})();
