@@ -1,5 +1,5 @@
-// Service worker: guarda só os arquivos do app (nunca os dados) para abrir rápido.
-const VERSAO = 'painel-v3';
+﻿// Service worker: guarda sÃ³ os arquivos do app (nunca os dados) para abrir rÃ¡pido.
+const VERSAO = 'painel-v4';
 const ARQUIVOS = [
   './', 'index.html', 'css/app.css', 'js/config.js', 'js/regras.js', 'js/data.js', 'js/charts.js', 'js/leitura.js', 'js/envio.js', 'js/app.js',
   'manifest.webmanifest', 'icons/logo_ipb.png', 'icons/favicon.png', 'icons/icon-192.png',
@@ -13,7 +13,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSAO).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-// Rede primeiro (atualizações aparecem logo); cache só como reserva offline.
+// Rede primeiro (atualizaÃ§Ãµes aparecem logo); cache sÃ³ como reserva offline.
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.includes('/dados/')) return;

@@ -288,6 +288,7 @@
         </div>
         <div class="env-a">
           ${e.status === 'recebido' && e.formato === 'pdf' && e.tipo_pdf === 'digital' && Data.podeEnviar() ? `<button class="btn" data-ler="${esc(e.id)}">Ler agora</button>` : ''}
+          ${e.status === 'recebido' && !(e.formato === 'pdf' && e.tipo_pdf === 'digital') && Data.podeValidar() ? `<a class="btn" href="#/digitar/${esc(e.id)}">Digitar dados</a>` : ''}
           <button class="btn ic-btn" data-baixar="${esc(e.caminho)}" aria-label="Baixar ${esc(e.arquivo_nome)}" title="Baixar arquivo original">${ic('baixar')}</button>
         </div>
       </li>`).join('')}</ul>`;
@@ -523,16 +524,169 @@
       </tbody></table></div>`;
   }
 
+  // ---------- Digitação / correção manual ----------
+  const ESTRUTURA_ED = [['congregacoes', 'Congregações'], ['pontos_pregacao', 'Pontos de pregação'], ['escolas_dominicais', 'Escolas dominicais'],
+    ['professores_ed', 'Professores da ED'], ['alunos_ed_atual', 'Alunos da ED (ano atual)'], ['alunos_ed_anterior', 'Alunos da ED (ano anterior)']];
+  const MOV_ED = {
+    comungantes: {
+      admissao: ['profissao_fe', 'profissao_fe_batismo', 'transferencia', 'jurisdicao', 'restauracao', 'designacao_presbiterio'],
+      demissao: ['transferencia', 'falecimento', 'exclusao', 'ordenacao'],
+      totais: [['rol_separado', 'Rol separado'], ['diferenca', 'Diferença (admissões − demissões)'], ['ano_anterior', 'Ano anterior'], ['ano_atual', 'Ano atual']],
+    },
+    nao_comungantes: {
+      admissao: ['batismo', 'transferencia', 'jurisdicao_ex_officio'],
+      demissao: ['profissao_fe', 'transferencia', 'falecimento', 'exclusao'],
+      totais: [['diferenca', 'Diferença (admissões − demissões)'], ['ano_anterior', 'Ano anterior'], ['ano_atual', 'Ano atual']],
+    },
+  };
+  const DADOS_VAZIOS = () => ({ lideranca: {}, estrutura: {}, departamentos: {}, comungantes: { admissao: {}, demissao: {} },
+    nao_comungantes: { admissao: {}, demissao: {} }, financeiro: { realizado: {}, previsto: {} } });
+  const obter = (o, path) => path.reduce((x, k) => (x == null ? undefined : x[k]), o);
+  const definir = (o, path, v) => { const pai = path.slice(0, -1).reduce((x, k) => (x[k] && typeof x[k] === 'object' ? x[k] : (x[k] = {})), o); pai[path[path.length - 1]] = v; };
+
+  function campoEd(path, i, v, rot, tipo = 'int') {
+    const txt = temValor(v) ? (tipo === 'int' ? String(v) : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '';
+    // Diferenças e saldos podem ser negativos: teclado completo (o numérico do celular não tem "−")
+    const neg = /diferenca|saldo/.test(path);
+    return `<input class="ed-in${tipo === 'brl' ? ' brl' : ''}" data-p="${path}"${i != null ? ` data-i="${i}"` : ''} data-r="${esc(rot)}" value="${txt}"
+      inputmode="${neg ? 'text' : tipo === 'brl' ? 'decimal' : 'numeric'}" autocomplete="off" aria-label="${esc(rot)}">`;
+  }
+
+  function edLista(sec, lista, d) {
+    return `<div class="tbl-wrap"><table class="tbl ed"><tbody>${lista.map(([k, l]) => `<tr><td>${l}</td><td>${campoEd(`${sec}.${k}`, null, d?.[k], l)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function edDepartamentos(d) {
+    const linhas = [...Regras.DEPARTAMENTOS, ['totais', 'Totais']];
+    return `<div class="tbl-wrap"><table class="tbl ed"><thead><tr><th>Departamento</th><th>Nº deptos.</th><th>Nº membros</th></tr></thead><tbody>
+      ${linhas.map(([k, l]) => `<tr${k === 'totais' ? ' class="tot"' : ''}><td>${l}</td>${[0, 1].map((i) => `<td>${campoEd(`departamentos.${k}`, i, d?.[k]?.[i], `${l} · ${i ? 'membros' : 'deptos.'}`)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div>`;
+  }
+
+  function edTrio(sec, d, rol) {
+    const nome = sec === 'comungantes' ? 'Comungantes' : 'Não comungantes';
+    const linha = (path, l, v, cls = '') => `<tr${cls ? ` class="${cls}"` : ''}><td>${esc(l)}</td>${[0, 1, 2].map((i) => `<td>${campoEd(path, i, v?.[i], `${nome} · ${l} · ${['masc.', 'fem.', 'total'][i]}`)}</td>`).join('')}</tr>`;
+    const grupo = (g, titulo) => {
+      // linhas do modelo + linhas extras que o documento trouxe (formulários alterados)
+      const chaves = [...new Set([...MOV_ED[sec][g], ...Object.keys(d?.[g] || {}).filter((k) => Array.isArray(d[g][k]))])];
+      return `<tr class="grp"><th colspan="4">${titulo}</th></tr>` + chaves.map((k) => linha(`${sec}.${g}.${k}`, Regras.ROTULOS[k] || k, d?.[g]?.[k], Regras.DETALHE.has(k) ? 'det' : '')).join('');
+    };
+    return `<div class="tbl-wrap"><table class="tbl ed"><thead><tr><th>Movimento</th><th>Masc.</th><th>Fem.</th><th>Total</th></tr></thead><tbody>
+      ${grupo('admissao', 'Admissões')}${grupo('demissao', 'Demissões')}
+      <tr class="grp"><th colspan="4">Totais</th></tr>${MOV_ED[sec].totais.map(([k, l]) => linha(`${sec}.${k}`, l, d?.[k], k === 'ano_atual' ? 'tot' : '')).join('')}
+      ${sec === 'nao_comungantes' ? `<tr class="grp"><th colspan="4">Rol atual (comungantes + não comungantes)</th></tr>${linha('rol_atual', 'Rol atual', rol, 'tot')}` : ''}
+      </tbody></table></div>`;
+  }
+
+  function edFinancas(fin) {
+    const linha = (k, l, forte) => `<tr${forte ? ' class="tot"' : ''}><td>${l}</td>${['realizado', 'previsto'].map((lado) => `<td>${campoEd(`financeiro.${lado}.${k}`, null, fin?.[lado]?.[k], `${l} · ${lado}`, 'brl')}</td>`).join('')}</tr>`;
+    return `<div class="tbl-wrap"><table class="tbl ed fin"><thead><tr><th>Item (R$)</th><th>Realizado</th><th>Previsto</th></tr></thead><tbody>
+      ${linha('saldo_anterior', 'Saldo anterior', true)}
+      <tr class="grp"><th colspan="3">Receitas</th></tr>${Regras.RECEITAS.map(([k, l]) => linha(k, l)).join('')}
+      ${linha('total_receita', 'Total da receita anual', true)}${linha('grande_total', 'Grande total', true)}
+      <tr class="grp"><th colspan="3">Despesas</th></tr>${Regras.DESPESAS.map(([k, l]) => linha(k, l)).join('')}
+      ${linha('total_despesa', 'Total da despesa anual', true)}${linha('saldo_seguinte', 'Saldo para o ano seguinte', true)}
+      </tbody></table></div>`;
+  }
+
+  // Lê o formulário: devolve os dados novos, as alterações (de → para) e os campos inválidos
+  function coletarEd(base) {
+    const d = JSON.parse(JSON.stringify(base));
+    const alteracoes = [], invalidos = [], arrays = new Map();
+    let preenchidos = 0;
+    $app.querySelectorAll('.ed-in').forEach((el) => {
+      const txt = el.value.trim();
+      const v = txt === '' ? null : Leitura.numero(txt);
+      const valido = txt === '' || v !== null;
+      el.classList.toggle('inv', !valido);
+      if (!valido) { invalidos.push(el.dataset.r); return; }
+      if (v !== null) preenchidos++;
+      const path = el.dataset.p.split('.');
+      const orig = obter(base, path);
+      const antes = el.dataset.i != null ? (Array.isArray(orig) ? orig[+el.dataset.i] : undefined) : orig;
+      const mudou = (antes ?? null) === null ? v !== null : v === null || Math.abs(antes - v) > 0.004;
+      el.classList.toggle('mud', mudou);
+      if (mudou) alteracoes.push({ campo: el.dataset.r, de: antes ?? null, para: v });
+      if (el.dataset.i != null) {
+        if (!arrays.has(el.dataset.p)) arrays.set(el.dataset.p, { path, orig, vals: [], els: [] });
+        const a = arrays.get(el.dataset.p); a.vals[+el.dataset.i] = v; a.els[+el.dataset.i] = el;
+      } else if (orig !== undefined || v !== null) definir(d, path, v);
+    });
+    for (const a of arrays.values()) {
+      const n = a.path[0] === 'departamentos' ? 2 : 3;
+      const vals = Array.from({ length: n }, (_, i) => a.vals[i] ?? null);
+      if (a.orig !== undefined || vals.some((x) => x !== null)) definir(d, a.path, vals);
+      // masc. + fem. ≠ total: destaca o total para conferência
+      if (n === 3 && a.els[2]) a.els[2].classList.toggle('inc', vals.every((x) => x !== null) && vals[0] + vals[1] !== vals[2]);
+    }
+    return { dados: d, alteracoes, invalidos, preenchidos };
+  }
+
+  function telaEditar({ r = null, envio = null }) {
+    const igreja = r ? r.igreja : (S.igrejas.find((i) => i.codigo === envio.igrejas?.codigo) || envio.igrejas);
+    const base = r ? r.dados : DADOS_VAZIOS();
+    const arquivo = envio || S.envios.find((e) => e.relatorio_id === r.id) || S.envios.find((e) => e.igrejas?.codigo === igreja.codigo);
+    const voltar = r ? `#/igreja/${igreja.codigo}/conferencia` : '#/pendencias';
+    const body = `
+      <p class="nota top">${r ? 'Corrija os valores que foram lidos errado.' : `Digite os valores do relatório a partir do arquivo <strong>${esc(envio.arquivo_nome)}</strong>.`}
+        Campo vazio significa <strong>não informado</strong> (diferente de zero). As somas são refeitas enquanto você digita; ${r ? 'a correção fica registrada no histórico, com o valor anterior, e' : ''} o relatório vai para conferência.</p>
+      ${arquivo ? `<button class="btn wide" data-baixar="${esc(arquivo.caminho)}">${ic('arquivo')}Abrir o arquivo enviado (${esc(arquivo.arquivo_nome)})</button>` : ''}
+      <div class="ed-bar" role="status"><span id="ed-st">—</span><button class="btn primary" id="ed-salvar" disabled>Salvar</button></div>
+      ${card('Liderança formal', edLista('lideranca', Regras.LIDERANCA, base.lideranca))}
+      ${card('Estrutura do trabalho', edLista('estrutura', ESTRUTURA_ED, base.estrutura))}
+      ${card('Departamentos internos', edDepartamentos(base.departamentos))}
+      ${card('Comungantes', edTrio('comungantes', base.comungantes))}
+      ${card('Não comungantes', edTrio('nao_comungantes', base.nao_comungantes, base.rol_atual))}
+      ${card('Informações financeiras', edFinancas(base.financeiro), { sub: 'Valores em reais, no formato 1.234,56' })}
+      <section class="card" id="ed-verif"></section>
+      ${r ? card('Motivo da correção', '<label class="lbl">Comentário (opcional)<textarea id="ed-coment" rows="2" placeholder="Ex.: valor de dízimos lido errado; conferido no PDF"></textarea></label>') : ''}`;
+
+    return {
+      title: r ? 'Corrigir dados' : 'Digitar dados', sub: esc(igreja?.nome || ''), back: voltar, body,
+      after: () => {
+        const $st = document.getElementById('ed-st'), $btn = document.getElementById('ed-salvar');
+        let atual = null;
+        const atualizar = () => {
+          atual = coletarEd(base);
+          const verif = Regras.verificacoes(atual.dados);
+          const falhas = verif.filter((x) => x.ok === false).length, conferidas = verif.filter((x) => x.ok !== null).length;
+          document.getElementById('ed-verif').innerHTML = `<header class="card-h"><h2>Verificações</h2><p>${falhas ? `${falhas} divergência(s)` : conferidas ? 'Todas as somas verificáveis conferem' : 'Preencha os campos para conferir as somas'}</p></header><ul class="vfs">${vfItens(verif)}</ul>`;
+          const n = r ? atual.alteracoes.length : atual.preenchidos;
+          $st.innerHTML = atual.invalidos.length ? `<b class="ed-err">${atual.invalidos.length} valor(es) inválido(s)</b>`
+            : `${r ? `${n} alteração(ões)` : `${n} campo(s) preenchido(s)`} · ${falhas ? `<b class="ed-err">${falhas} soma(s) com divergência</b>` : `${conferidas} soma(s) conferem`}`;
+          $btn.disabled = !!atual.invalidos.length || !n;
+        };
+        $app.querySelectorAll('.ed-in').forEach((el) => el.addEventListener('input', atualizar));
+        atualizar();
+        $btn.addEventListener('click', async () => {
+          atualizar();
+          if ($btn.disabled) return;
+          $btn.disabled = true; $btn.innerHTML = '<span class="spin"></span>Salvando…';
+          try {
+            if (r) await Data.corrigirRelatorio(r.id, atual.dados, atual.alteracoes, document.getElementById('ed-coment')?.value.trim());
+            else await Data.digitarEnvio(envio, atual.dados);
+            toast(r ? 'Correção salva. O relatório voltou para conferência.' : 'Dados salvos. O relatório está aguardando conferência.');
+            location.hash = `#/igreja/${igreja.codigo}/conferencia`;
+          } catch (e) { toast('Não foi possível salvar: ' + e.message); $btn.textContent = 'Salvar'; $btn.disabled = false; }
+        });
+      },
+    };
+  }
+
   // ---------- Conferência de um relatório ----------
-  function telaConferencia(r) {
-    const verif = Regras.verificacoes(r.dados);
-    const falhas = verif.filter((x) => x.ok === false);
+  const vfItens = (verif) => {
     const val = (x, v) => (x.moeda ? fmt.brl(v) : fmt.int(v));
-    const linhasVerif = verif.map((x) => `<li class="vf ${x.ok === true ? 'ok' : x.ok === false ? 'falha' : 'na'}">
+    return verif.map((x) => `<li class="vf ${x.ok === true ? 'ok' : x.ok === false ? 'falha' : 'na'}">
         <b aria-hidden="true">${x.ok === true ? '✓' : x.ok === false ? '✕' : '–'}</b>
         <div><span>${esc(x.titulo)}</span>
         ${x.ok === false ? `<small>Calculado: <strong>${val(x, x.esperado)}</strong> · Informado: <strong>${val(x, x.informado)}</strong></small>` : ''}
         ${x.ok === null ? '<small>Não verificável — campo não informado</small>' : ''}</div></li>`).join('');
+  };
+
+  function telaConferencia(r) {
+    const verif = Regras.verificacoes(r.dados);
+    const falhas = verif.filter((x) => x.ok === false);
+    const linhasVerif = vfItens(verif);
     const alertas = r.alertas.length
       ? r.alertas.map((a) => `<li class="al al-${a.nivel}"><span class="chip ${a.nivel === 'erro' ? 'critical' : 'warning'}"><b aria-hidden="true">${a.nivel === 'erro' ? '!' : 'i'}</b>${a.nivel === 'erro' ? 'Erro' : 'Aviso'}</span><p>${esc(a.msg)}</p><code>${esc(a.campo)}</code></li>`).join('')
       : '<p class="vazio">Nenhum alerta registrado na leitura do documento.</p>';
@@ -544,6 +698,7 @@
           ${r.status !== 'validado' ? `<button class="btn primary" data-acao="validado">Validar relatório</button>` : ''}
           ${r.status !== 'aguardando_correcao' ? `<button class="btn danger" data-acao="aguardando_correcao">Solicitar correção</button>` : ''}
           ${r.status !== 'aguardando_conferencia' ? `<button class="btn" data-acao="aguardando_conferencia">Voltar para conferência</button>` : ''}
+          <a class="btn" href="#/editar/${esc(r.igreja.codigo)}">Corrigir dados</a>
         </div>
         ${falhas.length && r.status !== 'validado' ? `<p class="small muted">Atenção: há ${falhas.length} verificação(ões) com divergência.</p>` : ''}
       </section>` : '';
@@ -671,6 +826,16 @@
       case 'igreja': return render(telaIgreja(p1, p2), rep ? 'igreja' : 'igrejas');
       case 'pendencias': return render(telaPendencias(), 'pendencias');
       case 'enviar': return render(telaEnviar(rep ? S.perfil.igreja_codigo : p1), rep ? 'enviar' : 'igrejas');
+      case 'editar': {
+        const r = relPorCodigo(p1);
+        if (!r || !Data.podeValidar()) { location.replace('#/'); return; }
+        return render(telaEditar({ r }), 'igrejas');
+      }
+      case 'digitar': {
+        const envio = S.envios.find((e) => e.id === p1);
+        if (!envio || !Data.podeValidar()) { location.replace('#/pendencias'); return; }
+        return render(telaEditar({ envio }), 'pendencias');
+      }
       case 'sinodo': return render(telaSinodo(), 'sinodo');
       case 'perfil': return render(telaPerfil(), 'perfil');
       default: location.replace('#/');

@@ -94,7 +94,7 @@ window.Data = (() => {
 
   async function carregarEnvios() {
     const { data, error } = await sb.from('envios')
-      .select('id, ano, arquivo_nome, caminho, formato, tipo_pdf, tamanho, status, verificacao, enviado_em, igrejas(codigo, nome)')
+      .select('id, ano, arquivo_nome, caminho, formato, tipo_pdf, tamanho, status, verificacao, enviado_em, relatorio_id, igrejas(codigo, nome)')
       .order('enviado_em', { ascending: false });
     // Tabela ainda não criada (migração 002 não executada): segue sem envios
     state.envios = error ? [] : data;
@@ -169,6 +169,26 @@ window.Data = (() => {
     await carregar();
   }
 
+  // ---------- Digitação / correção manual ----------
+  async function corrigirRelatorio(relId, dados, alteracoes, comentario) {
+    if (state.modo === 'supabase') {
+      const { error } = await sb.rpc('corrigir_relatorio', { p_relatorio: relId, p_dados: dados, p_alteracoes: alteracoes, p_comentario: comentario || null });
+      if (error) throw new Error(error.message);
+      return carregar();
+    }
+    const r = state.relatorios.find((x) => x.id === relId); // modo local: só na memória
+    r.dados = dados; r.status = 'aguardando_conferencia';
+    r.historico.push({ status: 'aguardando_conferencia', comentario: `Correção manual de ${alteracoes.length} campo(s) (modo local, não salvo)`, criado_em: new Date().toISOString() });
+  }
+
+  // Digitação a partir de um arquivo recebido que não pôde ser lido (PDF digitalizado, Excel)
+  async function digitarEnvio(envio, dados) {
+    const alertas = [{ nivel: 'aviso', campo: 'leitura', msg: `Dados digitados manualmente a partir do arquivo ${envio.arquivo_nome}.` }];
+    const { error } = await sb.rpc('processar_envio', { p_envio: envio.id, p_dados: dados, p_alertas: alertas, p_modelo: null });
+    if (error) throw new Error(error.message);
+    await carregar();
+  }
+
   async function urlArquivo(caminho) {
     const { data, error } = await sb.storage.from('relatorios').createSignedUrl(caminho, 600);
     if (error) throw error;
@@ -193,6 +213,6 @@ window.Data = (() => {
 
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
-    envioExiste, enviarRelatorio, processarEnvio, urlArquivo,
+    envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, urlArquivo,
   };
 })();
