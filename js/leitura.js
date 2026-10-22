@@ -32,7 +32,7 @@ window.Leitura = (() => {
         if (r && Math.abs(r.y - it.y) <= Math.max(2, it.h * 0.4)) r.itens.push(it);
         else rows.push({ y: it.y, itens: [it] });
       }
-      rows.forEach((r) => r.itens.sort((a, b) => a.x - b.x));
+      rows.forEach((r) => { r.itens.sort((a, b) => a.x - b.x); r.pagina = p; });
       out.push(...rows);
     }
     return out;
@@ -115,9 +115,14 @@ window.Leitura = (() => {
     const transf = { c: 0, n: 0 };
     const naoReconhecidas = [];
     const grandeTotalFinal = {};
+    // Rastreabilidade: página e trecho (a linha do documento) de onde cada campo foi lido
+    const origem = {};
+    let trecho = null;
+    const marcar = (caminho) => { origem[caminho] = trecho; };
 
     const depois = (row, i) => row.itens.slice(i + 1).map((x) => x.s);
     for (const row of rows) {
+      trecho = { p: row.pagina, l: row.itens.map((i) => i.s).join(' ').slice(0, 180) };
       const ks = row.itens.map((i) => chave(i.s));
       const texto = norm(row.itens.map((i) => i.s).join(' '));
 
@@ -146,12 +151,12 @@ window.Leitura = (() => {
       const segs = segmentos(row);
       if (secao === 'estrutura') {
         for (const g of segs) {
-          if (LIDERANCA[g.k]) { d.lideranca[LIDERANCA[g.k]] = g.nums[0]?.v ?? null; lidos++; }
-          else if (ESTRUTURA[g.k]) { d.estrutura[ESTRUTURA[g.k]] = g.nums[0]?.v ?? null; lidos++; }
+          if (LIDERANCA[g.k]) { d.lideranca[LIDERANCA[g.k]] = g.nums[0]?.v ?? null; marcar(`lideranca.${LIDERANCA[g.k]}`); lidos++; }
+          else if (ESTRUTURA[g.k]) { d.estrutura[ESTRUTURA[g.k]] = g.nums[0]?.v ?? null; marcar(`estrutura.${ESTRUTURA[g.k]}`); lidos++; }
           else if (DEPARTAMENTOS[g.k]) {
             const par = [null, null];
             g.nums.forEach((n, j) => { par[xMembros != null ? (n.x >= xMembros ? 1 : 0) : j] = n.v; });
-            d.departamentos[DEPARTAMENTOS[g.k]] = par; lidos++;
+            d.departamentos[DEPARTAMENTOS[g.k]] = par; marcar(`departamentos.${DEPARTAMENTOS[g.k]}`); lidos++;
           }
         }
       } else if (secao === 'rol' && colC && colN) {
@@ -168,11 +173,12 @@ window.Leitura = (() => {
           let destino = null;
           if (g.k === 'TRANSFERENCIA') destino = [transf[lado]++ === 0 ? 'admissao' : 'demissao', 'transferencia'];
           else if (g.k.startsWith('DIFERENCA')) destino = [null, 'diferenca'];
-          else if (lado === 'n' && g.k.startsWith('ROL ATUAL')) { d.rol_atual = trio; lidos++; continue; }
+          else if (lado === 'n' && g.k.startsWith('ROL ATUAL')) { d.rol_atual = trio; marcar('rol_atual'); lidos++; continue; }
           else destino = (lado === 'n' ? ROL_N : ROL_C)[g.k] || null;
           if (!destino) { if (g.nums.length) naoReconhecidas.push(g.texto.replace(/:\s*$/, '')); continue; }
           const [bloco, campo] = destino;
           (bloco ? alvo[bloco] : alvo)[campo] = trio; lidos++;
+          marcar([lado === 'n' ? 'nao_comungantes' : 'comungantes', bloco, campo].filter(Boolean).join('.'));
         }
       } else if (secao === 'fin') {
         const recon = segs.filter((g) => FINANCAS[g.k] || g.k === 'GRANDE TOTAL' || g.k === 'EMPRESTIMOS IPB / JPEF');
@@ -190,6 +196,7 @@ window.Leitura = (() => {
             campo = 'grande_total';
           }
           f[campo] = v; lidos++;
+          marcar(`financeiro.${lado}.${campo}`);
           if (g.erros.length) alerta('erro', `financeiro.${lado}.${campo}`, `A planilha de origem mostra erro (${g.erros.join(', ')}) ${v === null ? 'no valor' : 'na coluna de percentual'} da linha "${g.texto.replace(/:\s*$/, '')}" (${lado}).`);
           if (g.nums.length > 1) alerta('aviso', `financeiro.${lado}.${campo}`, `Mais de um valor na linha "${g.texto.replace(/:\s*$/, '')}"; foi considerado o primeiro.`);
         });
@@ -200,6 +207,7 @@ window.Leitura = (() => {
     if (!c.demissao.exclusao && (c.demissao.exclusao_a_pedido || c.demissao.exclusao_por_ausencia)) {
       const a = c.demissao.exclusao_a_pedido || [null, null, null], b = c.demissao.exclusao_por_ausencia || [null, null, null];
       c.demissao.exclusao = a.map((x, j) => (x == null && b[j] == null ? null : (x || 0) + (b[j] || 0)));
+      origem['comungantes.demissao.exclusao'] = { derivado: 'Calculado pelo sistema: Exclusão a Pedido + Exclusão por Ausência (linhas do formulário alterado)' };
     }
 
     // ---- Alertas da leitura ----
@@ -223,6 +231,7 @@ window.Leitura = (() => {
     if (d.rol_atual === undefined) d.rol_atual = null;
 
     d.identificacao = { nome_no_documento: ident.nome || null, sinodo_sigla: ident.sinodo_sigla || null, presbiterio_sigla: ident.presbiterio_sigla || null, data_organizacao: ident.data_organizacao || null };
+    d._origem = { formato: 'pdf', campos: origem };
     return { ok: faltou.length <= ESPERADOS.length * 0.4, dados: d, alertas, modelo, ident, lidos, esperados: ESPERADOS.length };
   }
 
@@ -274,9 +283,10 @@ window.Leitura = (() => {
       return campo.celulas.length > 1 ? vals : vals[0];
     };
 
+    const origem = {};
     for (const campo of D.campos.filter((c) => c.aba === D.ABAS.CE && !c.pendente)) {
       definirCaminho(d, campo.id.split('.'), lerCampo(ws, D.ABAS.CE, campo));
-      if (!campo.id.startsWith('identificacao.')) lidos++;
+      if (!campo.id.startsWith('identificacao.')) { lidos++; origem[campo.id] = { a: D.ABAS.CE, c: campo.celulas.join(' · ') }; }
     }
     // Conselho / Congregação: só entram se houver algo preenchido (o modelo vem com as abas vazias)
     for (const [nomeAba, chave] of [[D.ABAS.CM, 'conselho'], [D.ABAS.CG, 'congregacao_anexo']]) {
@@ -286,8 +296,12 @@ window.Leitura = (() => {
       for (const campo of D.campos.filter((c) => c.aba === D.ABAS.CM && !c.pendente)) bloco[campo.id.split('.')[1]] = lerCampo(w, nomeAba, campo);
       if (chave === 'congregacao_anexo') bloco.nome = lerCelula(w, 'G8', 'texto').v;
       const preenchido = Object.entries(bloco).some(([k, v]) => k !== 'nome' && v !== null && v !== 0);
-      if (preenchido) { d[chave] = bloco; lidos += Object.keys(bloco).length; }
+      if (preenchido) {
+        d[chave] = bloco; lidos += Object.keys(bloco).length;
+        for (const campo of D.campos.filter((c) => c.aba === D.ABAS.CM && !c.pendente)) origem[`${chave}.${campo.id.split('.')[1]}`] = { a: nomeAba, c: campo.celulas.join(' · ') };
+      }
     }
+    d._origem = { formato: 'xlsx', campos: origem };
 
     const ident = d.identificacao;
     const modelo = (() => { const m = norm(ws.A83?.v).match(/CSM-IPB\s*-\s*(\d{4})\s*-\s*V\.?\s*([\d.]+)/); return m ? `CSM-IPB ${m[1]} v${m[2]} (Excel)` : 'CSM-IPB (Excel)'; })();

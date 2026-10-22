@@ -81,6 +81,20 @@ window.Ajuda = (() => {
       <p class="nota">Em todas as tabelas, “—” significa <em>não informado</em> e 0 significa <em>informado como zero</em>.</p>`,
     },
     {
+      id: 'rastreio', titulo: 'De onde vem cada número (rastreabilidade)', para: ['todos'], html: `
+      <p>Todo número <span class="aj-rv">sublinhado</span> pode ser tocado para ver a sua origem:</p>
+      <ul>
+        <li><strong>Indicador</strong>, igreja e ano de referência.</li>
+        <li><strong>Documento original</strong>, com botão para abri-lo.</li>
+        <li><strong>Onde está no documento:</strong> no PDF, a página e o trecho exato da linha; no Excel, a aba e a célula.</li>
+        <li><strong>Data da extração</strong> e <strong>situação da validação</strong>.</li>
+        <li><strong>Fórmula e regra</strong> do modelo oficial para aquele campo.</li>
+        <li><strong>Correções manuais</strong> naquele campo (data e valor antes → depois).</li>
+      </ul>
+      <p>Nos <strong>totais do presbitério</strong> (membros, comungantes, Escola Dominical, receita, despesa), o toque mostra quais igrejas compõem a soma, quais não informaram e quais ficaram de fora por não estarem validadas. Cada valor da lista leva à sua origem.</p>
+      <p class="nota">Relatórios de PDF escaneado mostram a seção do formulário e a célula do modelo, pois não há texto para localizar a linha.</p>`,
+    },
+    {
       id: 'enviar', titulo: 'Enviar relatório', para: ['rep', 'admin'], html: `
       <ol class="aj-passos">
         <li><strong>Relatório:</strong> escolha a igreja (o representante já vem com a sua) e o exercício.</li>

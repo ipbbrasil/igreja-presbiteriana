@@ -181,6 +181,14 @@ window.Data = (() => {
     r.historico.push({ status: 'aguardando_conferencia', comentario: `Correção manual de ${alteracoes.length} campo(s) (modo local, não salvo)`, criado_em: new Date().toISOString() });
   }
 
+  // Correções manuais de um relatório (para a rastreabilidade de cada valor)
+  async function listarCorrecoes(relId) {
+    if (state.modo === 'local') return [];
+    const { data, error } = await sb.from('correcoes').select('criado_em, comentario, alteracoes').eq('relatorio_id', relId).order('criado_em');
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
   // Digitação a partir de um arquivo recebido que não pôde ser lido (PDF digitalizado, Excel)
   async function digitarEnvio(envio, dados) {
     const alertas = [{ nivel: 'aviso', campo: 'leitura', msg: `Dados digitados manualmente a partir do arquivo ${envio.arquivo_nome}.` }];
@@ -242,7 +250,7 @@ window.Data = (() => {
 
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
-    envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, urlArquivo,
+    envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();

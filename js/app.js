@@ -54,6 +54,117 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2600);
   };
 
+  // ---------- Rastreabilidade ----------
+  // Valor tocável: abre a origem do dado (documento, página/célula, extração, validação, correções)
+  const rv = (html, caminho, i = null, igreja = null) => `<button type="button" class="rv" data-campo="${caminho}"${i != null ? ` data-i="${i}"` : ''}${igreja ? ` data-igreja="${esc(igreja)}"` : ''} title="Ver a origem deste valor">${html}</button>`;
+  // Total consolidado tocável: abre a lista de igrejas que somaram
+  const rvc = (html, chave) => `<button type="button" class="rv" data-consol="${chave}" title="Ver quais igrejas compõem este total">${html}</button>`;
+  const COL3 = ['masculino', 'feminino', 'total'], COL2 = ['nº de departamentos', 'nº de membros'];
+  const CONSOL = {
+    rol: ['Rol de membros', (r) => T(r.dados.rol_atual), 'int', 'rol_atual', 2],
+    com: ['Comungantes', (r) => T(r.dados.comungantes?.ano_atual), 'int', 'comungantes.ano_atual', 2],
+    nc: ['Não comungantes', (r) => T(r.dados.nao_comungantes?.ano_atual), 'int', 'nao_comungantes.ano_atual', 2],
+    ed: ['Alunos na Escola Dominical', (r) => r.dados.estrutura?.alunos_ed_atual, 'int', 'estrutura.alunos_ed_atual'],
+    prof: ['Professores da Escola Dominical', (r) => r.dados.estrutura?.professores_ed, 'int', 'estrutura.professores_ed'],
+    rec: ['Receita anual realizada', (r) => r.dados.financeiro?.realizado?.total_receita, 'brl', 'financeiro.realizado.total_receita'],
+    desp: ['Despesa anual realizada', (r) => r.dados.financeiro?.realizado?.total_despesa, 'brl', 'financeiro.realizado.total_despesa'],
+  };
+
+  function abrirPainel(titulo, html) {
+    fecharPainel();
+    const el = document.createElement('div');
+    el.className = 'sheet-bg'; el.id = 'sheet';
+    el.innerHTML = `<section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+        <header class="sheet-h"><h2>${titulo}</h2><button class="btn ic-btn" id="sheet-x" aria-label="Fechar">✕</button></header>
+        <div class="sheet-c">${html}</div></section>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', (e) => { if (e.target === el || e.target.closest('#sheet-x') || e.target.closest('a[href^="#/"]')) fecharPainel(); });
+    el.querySelector('#sheet-x').focus();
+    return el;
+  }
+  function fecharPainel() { document.getElementById('sheet')?.remove(); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharPainel(); });
+
+  const campoDic = (caminho) => { const id = caminho.replace(/^congregacao_anexo\./, 'conselho.'); return Dicionario.campos.find((c) => c.id === id) || null; };
+  const envioDoRelatorio = (r) => S.envios.find((e) => e.relatorio_id === r.id) || S.envios.find((e) => e.igrejas?.codigo === r.igreja.codigo && e.arquivo_nome === r.arquivo);
+
+  async function painelOrigem(r, caminho, i) {
+    const dic = campoDic(caminho);
+    const bruto = caminho.split('.').reduce((o, k) => (o == null ? undefined : o[k]), r.dados);
+    const valor = i != null && Array.isArray(bruto) ? bruto[i] : bruto;
+    const moeda = dic?.tipo === 'moeda';
+    const valorTxt = temValor(valor) ? (moeda ? fmt.brl(valor) : fmt.int(valor)) : 'não informado (campo vazio no relatório)';
+    const coluna = i != null ? (dic?.tipo === 'par' ? COL2 : COL3)[i] : null;
+    const orig = r.dados._origem?.campos?.[caminho];
+    const envio = envioDoRelatorio(r);
+    const digitado = r.alertas.some((a) => a.campo === 'leitura' && /digitados manualmente/i.test(a.msg));
+    let local;
+    if (orig?.derivado) local = esc(orig.derivado);
+    else if (orig?.p) local = `Página ${orig.p} do PDF<blockquote class="trecho">${esc(orig.l)}</blockquote>`;
+    else if (orig?.a) local = `Aba “${esc(orig.a)}” · célula <strong>${esc(orig.c)}</strong>${coluna ? ` (coluna ${coluna})` : ''}`;
+    else if (digitado) local = 'Digitado manualmente a partir do arquivo enviado';
+    else if (dic) local = `${r.tipo_pdf ? `PDF · ${dic.aba === 'Cadastro & Estatística' ? (caminho.startsWith('financeiro') ? 'página 2, seção IV' : 'página 1, seções II e III') : 'aba do Conselho'}` : 'Excel'}
+      · no modelo: aba “${esc(dic.aba)}”, célula ${esc(dic.celulas.join(' · '))}<br><span class="muted small">Localização exata não registrada (relatório importado antes da rastreabilidade)</span>`;
+    else local = '—';
+    const ultimo = r.historico[r.historico.length - 1];
+    const html = `
+      <p class="rv-valor">${valorTxt}</p>
+      <dl class="dl">
+        <dt>Indicador</dt><dd>${esc(dic?.rotulo || caminho)}${coluna ? ` · ${coluna}` : ''}<br><code>${esc(caminho)}${i != null ? `[${i}]` : ''}</code></dd>
+        <dt>Igreja</dt><dd>${esc(r.igreja.nome)}</dd>
+        <dt>Ano de referência</dt><dd>${r.ano}${dic?.periodo ? ` · ${esc(dic.periodo)}` : ''}</dd>
+        <dt>Documento</dt><dd>${esc(r.arquivo || '—')} · ${esc(formatoTxt(r))}${r.versao ? ` · versão ${r.versao}` : ''}
+          ${envio ? `<br><button class="btn" data-baixar="${esc(envio.caminho)}">${ic('baixar')}Abrir o documento original</button>` : ''}</dd>
+        <dt>Origem no documento</dt><dd>${local}</dd>
+        <dt>Extração</dt><dd>${r.extraido_em ? `${fmt.dataHora(r.extraido_em)} · leitura automática` : 'Importação inicial (transcrição dos PDFs)'}</dd>
+        <dt>Validação</dt><dd>${chip(r.status)}${ultimo ? `<br><span class="muted small">${fmt.dataHora(ultimo.criado_em)}${ultimo.comentario ? ` · ${esc(ultimo.comentario)}` : ''}</span>` : ''}</dd>
+        ${dic?.formula ? `<dt>Fórmula do modelo</dt><dd>${esc(dic.formula)}</dd>` : ''}
+        ${dic?.validacao ? `<dt>Regra</dt><dd>${esc(dic.validacao)}</dd>` : ''}
+        <dt>Correções</dt><dd id="rv-corr"><span class="muted">Consultando…</span></dd>
+      </dl>
+      <p class="nota">Valor tal como está no relatório${temValor(valor) ? '' : ' — campo vazio não é tratado como zero'}. Use “Abrir o documento original” para conferir.</p>`;
+    const el = abrirPainel('Origem do valor', html);
+    try {
+      const alvo = caminho + (i != null ? `[${i}]` : '');
+      const correcoes = await Data.listarCorrecoes(r.id);
+      const lista = correcoes.flatMap((c) => (c.alteracoes || []).filter((a) => a.caminho === alvo).map((a) => ({ ...a, quando: c.criado_em, comentario: c.comentario })));
+      // Correções feitas antes de o campo exato ser registrado
+      const antigas = correcoes.filter((c) => (c.alteracoes || []).some((a) => !a.caminho)).length;
+      el.querySelector('#rv-corr').innerHTML = (lista.length
+        ? lista.map((a) => `${fmt.dataHora(a.quando)}: <strong>${esc(a.de ?? 'vazio')} → ${esc(a.para ?? 'vazio')}</strong>${a.comentario ? ` · ${esc(a.comentario)}` : ''}`).join('<br>')
+        : 'Nenhuma correção manual neste campo.')
+        + (antigas ? `<br><span class="muted small">${antigas} correção(ões) anterior(es) sem o campo registrado — veja o Histórico na Conferência.</span>` : '');
+    } catch (e) { el.querySelector('#rv-corr').textContent = 'Não foi possível consultar as correções.'; }
+  }
+
+  function painelConsolidado(chave) {
+    const [titulo, fn, tipo, caminho, i] = CONSOL[chave];
+    const validados = S.relatorios.filter((r) => r.status === 'validado');
+    const base = ui.escopo === 'todos' ? S.relatorios : validados;
+    const c = Regras.consolidar(base, fn);
+    const f = tipo === 'brl' ? fmt.brl : fmt.int;
+    const linhas = [...base].sort((a, b) => (fn(b) ?? -Infinity) - (fn(a) ?? -Infinity));
+    const fora = S.relatorios.filter((r) => !base.includes(r));
+    abrirPainel(titulo, `
+      <p class="rv-valor">${f(c.total)}</p>
+      <p>Soma de <strong>${c.n} de ${c.de}</strong> igrejas consideradas (${ui.escopo === 'todos' ? 'todos os relatórios recebidos' : 'somente validados'}). Igreja sem o dado não entra na soma — não é contada como zero.</p>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Igreja</th><th>Valor</th><th>Situação</th></tr></thead><tbody>
+        ${linhas.map((r) => `<tr><td><a href="#/igreja/${esc(r.igreja.codigo)}">${esc(r.igreja.nome)}</a></td>
+          <td>${temValor(fn(r)) ? rv(f(fn(r)), caminho, i, r.igreja.codigo) : '<span class="na">não informado</span>'}</td><td>${chip(r.status)}</td></tr>`).join('')}
+      </tbody><tfoot><tr class="tot"><td>Total</td><td>${f(c.total)}</td><td>${c.n} de ${c.de}</td></tr></tfoot></table></div>
+      ${fora.length ? `<p class="nota">Fora deste total por não estarem validados: ${fora.map((r) => esc(nomeCurto(r.igreja.nome))).join(', ')}.</p>` : ''}
+      <p class="nota">Toque em um valor para ver de que linha do relatório ele veio.</p>`);
+  }
+
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.rv');
+    if (!b) return;
+    if (b.dataset.consol) return painelConsolidado(b.dataset.consol);
+    const cod = b.dataset.igreja || location.hash.split('/')[2];
+    const r = relPorCodigo(decodeURIComponent(cod || ''));
+    if (r) painelOrigem(r, b.dataset.campo, b.dataset.i != null ? +b.dataset.i : null);
+  });
+
   // ---------- Navegação por perfil ----------
   function itensNav() {
     const p = S.perfil?.papel;
@@ -190,10 +301,10 @@
     const body = `
       <section class="hero">
         <p class="kicker"><a href="#/sinodo">${esc(S.sinodo?.nome || 'Sínodo')}</a> › ${esc(S.presbiterio?.nome || '')} — relatórios estatísticos do exercício ${S.ano}, ${ui.escopo === 'todos' ? 'todos os recebidos' : 'somente os validados'}.</p>
-        <h2>${fmt.int(rol.total)} <small>membros</small></h2>
+        <h2>${rvc(fmt.int(rol.total), 'rol')} <small>membros</small></h2>
         <div class="metric-row">
-          <div class="metric-pill"><span class="num">${fmt.int(com.total)}</span><span class="label">Comungantes</span><span class="d">${dTxt(comV)}</span></div>
-          <div class="metric-pill"><span class="num">${fmt.int(nc.total)}</span><span class="label">Não comungantes</span><span class="d">${dTxt(ncV)}</span></div>
+          <div class="metric-pill"><span class="num">${rvc(fmt.int(com.total), 'com')}</span><span class="label">Comungantes</span><span class="d">${dTxt(comV)}</span></div>
+          <div class="metric-pill"><span class="num">${rvc(fmt.int(nc.total), 'nc')}</span><span class="label">Não comungantes</span><span class="d">${dTxt(ncV)}</span></div>
           <div class="metric-pill"><span class="num">${base.length} <small>de ${todos.length}</small></span><span class="label">Igrejas consideradas</span><span class="d">${validados.length} relatórios validados</span></div>
         </div>
         <div class="seg" role="group" aria-label="Relatórios considerados">
@@ -209,10 +320,10 @@
       ${card('Recebimento dos relatórios', `<div class="cs-bar">${segs}</div><div class="cob">${chipsStatus}</div>`, { sub: `Exercício ${S.ano} · ${todos.length} relatórios recebidos` })}
 
       <div class="kpis k4">
-        ${kpi('Alunos na Escola Dominical', fmt.int(ed.total), delta(edV), cobertura(ed))}
-        ${kpi('Professores da Escola Dominical', fmt.int(prof.total), '', cobertura(prof))}
-        ${kpi('Receita anual realizada', fmt.brlCurto(rec.total), '', cobertura(rec))}
-        ${kpi('Despesa anual realizada', fmt.brlCurto(desp.total), '', cobertura(desp))}
+        ${kpi('Alunos na Escola Dominical', rvc(fmt.int(ed.total), 'ed'), delta(edV), cobertura(ed))}
+        ${kpi('Professores da Escola Dominical', rvc(fmt.int(prof.total), 'prof'), '', cobertura(prof))}
+        ${kpi('Receita anual realizada', rvc(fmt.brlCurto(rec.total), 'rec'), '', cobertura(rec))}
+        ${kpi('Despesa anual realizada', rvc(fmt.brlCurto(desp.total), 'desp'), '', cobertura(desp))}
       </div>
 
       <div class="grid2">
@@ -246,7 +357,7 @@
           <button class="btn" data-exportar="pdf">${ic('arquivo')}Resumo em PDF</button>
         </div>`, { sub: `Mesmos relatórios do painel: ${ui.escopo === 'todos' ? 'todos os recebidos' : 'somente os validados'} (${base.length} de ${todos.length})` })}
 
-      <p class="nota">Campos vazios nos relatórios contam como <em>não informado</em>, não como zero. Cada indicador mostra quantas igrejas contribuíram para o total.</p>`;
+      <p class="nota">Campos vazios nos relatórios contam como <em>não informado</em>, não como zero. Cada indicador mostra quantas igrejas contribuíram para o total. Toque em um número sublinhado para ver de onde ele vem.</p>`;
 
     return {
       title: esc(S.presbiterio?.nome || 'Presbitério'), sub: `Exercício ${S.ano}`, body,
@@ -443,7 +554,7 @@
         ${/\.xlsx$/i.test(r.arquivo || '') ? 'Nesta planilha essa aba está vazia.' : 'Este relatório foi recebido em PDF, que traz apenas o Cadastro & Estatística.'}</p>
         <p class="nota">Para ver Santa Ceia, evangelização, visitas, reuniões e planejamento, envie o relatório completo em Excel (.xlsx).</p>`);
     }
-    const mini = (bloco, itens) => `<div class="mini">${itens.map(([k, l]) => `<div><strong>${fmt.int(bloco[k])}</strong><span>${l}</span></div>`).join('')}</div>`;
+    const mini = (bloco, itens, raiz = 'conselho') => `<div class="mini">${itens.map(([k, l]) => `<div><strong>${rv(fmt.int(bloco[k]), `${raiz}.${k}`)}</strong><span>${l}</span></div>`).join('')}</div>`;
     const textos = (bloco, itens) => { const dl = itens.filter(([k]) => bloco[k]).map(([k, l]) => `<dt>${l}</dt><dd>${esc(bloco[k])}</dd>`).join(''); return dl ? `<dl class="dl">${dl}</dl>` : ''; };
     const fonte = `${ic('arquivo')} Fonte: ${esc(r.arquivo)} · aba “Conselho ou Mesa”`;
     const cg = r.dados.congregacao_anexo;
@@ -462,7 +573,7 @@
         ['reforma_projeto', 'Reforma/construção em projeto'], ['reforma_andamento', 'Reforma/construção em andamento']]), { fonte })}
       ${textos(m, [['objetivos_alcancados', 'Objetivos alcançados'], ['objetivos_nao_alcancados', 'Objetivos não alcançados e dificuldades']]) ? card('Planejamento estratégico',
         textos(m, [['objetivos_alcancados', 'Objetivos alcançados'], ['objetivos_nao_alcancados', 'Objetivos não alcançados e dificuldades']]), { fonte }) : ''}
-      ${cg ? card(`Congregação${cg.nome ? `: ${esc(cg.nome)}` : ''}`, mini(cg, [...MIN_ITENS.ceia.slice(2), ['atividades_evangelisticas', 'Atividades evangelísticas'], ['visitas_total', 'Visitas'], ['atos_beneficentes_total', 'Atos beneficentes']]),
+      ${cg ? card(`Congregação${cg.nome ? `: ${esc(cg.nome)}` : ''}`, mini(cg, [...MIN_ITENS.ceia.slice(2), ['atividades_evangelisticas', 'Atividades evangelísticas'], ['visitas_total', 'Visitas'], ['atos_beneficentes_total', 'Atos beneficentes']], 'congregacao_anexo'),
         { sub: 'Anexo “Congregação” — mostrado à parte e não somado aos totais da igreja, para não contar duas vezes' }) : ''}
       <p class="nota">As perguntas Sim/Não do relatório (documentação, previdência, seguro, planejamento) são caixas de seleção no Excel e ainda não são lidas automaticamente.</p>`;
   }
@@ -474,7 +585,7 @@
     const v = contaVerif(r);
     const pend = r.alertas.length + v.falhas;
     const abas = ABAS.map(([id, l]) => `<a href="#/igreja/${cod}/${id}" class="${id === aba ? 'on' : ''}"${id === aba ? ' aria-current="page"' : ''}>${l}${id === 'conferencia' && pend ? ` <span class="badge">${pend}</span>` : ''}</a>`).join('');
-    const fonte = (sec) => `${ic('arquivo')} Fonte: ${esc(r.arquivo)} · ${sec}`;
+    const fonte = (sec) => `${ic('arquivo')} Fonte: ${esc(r.arquivo)} · ${r.tipo_pdf || !/\.xlsx$/i.test(r.arquivo || '') ? sec : 'aba “Cadastro & Estatística”'}`;
 
     let corpo = '';
     if (aba === 'geral') {
@@ -484,27 +595,28 @@
       const fr = d.financeiro?.realizado || {};
       corpo = `
         <div class="kpis">
-          ${kpi('Rol de membros', fmt.int(T(d.rol_atual)))}
-          ${kpi('Comungantes', fmt.int(T(d.comungantes?.ano_atual)), delta(comV))}
-          ${kpi('Não comungantes', fmt.int(T(d.nao_comungantes?.ano_atual)), delta(ncV))}
-          ${kpi('Alunos na Escola Dominical', fmt.int(d.estrutura?.alunos_ed_atual), delta(edV))}
-          ${kpi('Receita anual realizada', fmt.brlCurto(fr.total_receita))}
-          ${kpi('Despesa anual realizada', fmt.brlCurto(fr.total_despesa))}
+          ${kpi('Rol de membros', rv(fmt.int(T(d.rol_atual)), 'rol_atual', 2))}
+          ${kpi('Comungantes', rv(fmt.int(T(d.comungantes?.ano_atual)), 'comungantes.ano_atual', 2), delta(comV))}
+          ${kpi('Não comungantes', rv(fmt.int(T(d.nao_comungantes?.ano_atual)), 'nao_comungantes.ano_atual', 2), delta(ncV))}
+          ${kpi('Alunos na Escola Dominical', rv(fmt.int(d.estrutura?.alunos_ed_atual), 'estrutura.alunos_ed_atual'), delta(edV))}
+          ${kpi('Receita anual realizada', rv(fmt.brlCurto(fr.total_receita), 'financeiro.realizado.total_receita'))}
+          ${kpi('Despesa anual realizada', rv(fmt.brlCurto(fr.total_despesa), 'financeiro.realizado.total_despesa'))}
         </div>
-        ${card('Liderança formal', `<div class="mini">${Regras.LIDERANCA.map(([k, l]) => `<div><strong>${fmt.int(d.lideranca?.[k])}</strong><span>${l}</span></div>`).join('')}</div>`, { fonte: fonte('pág. 1 · seção II') })}
+        ${card('Liderança formal', `<div class="mini">${Regras.LIDERANCA.map(([k, l]) => `<div><strong>${rv(fmt.int(d.lideranca?.[k]), `lideranca.${k}`)}</strong><span>${l}</span></div>`).join('')}</div>`, { fonte: fonte('pág. 1 · seção II') })}
         ${card('Estrutura do trabalho', `<div class="mini">
-          <div><strong>${fmt.int(d.estrutura?.congregacoes)}</strong><span>Congregações</span></div>
-          <div><strong>${fmt.int(d.estrutura?.pontos_pregacao)}</strong><span>Pontos de pregação</span></div>
-          <div><strong>${fmt.int(d.estrutura?.escolas_dominicais)}</strong><span>Escolas dominicais</span></div>
-          <div><strong>${fmt.int(d.departamentos?.totais?.[0])}</strong><span>Departamentos internos</span></div>
-        </div>`, { fonte: fonte('pág. 1 · seção II') })}`;
+          <div><strong>${rv(fmt.int(d.estrutura?.congregacoes), 'estrutura.congregacoes')}</strong><span>Congregações</span></div>
+          <div><strong>${rv(fmt.int(d.estrutura?.pontos_pregacao), 'estrutura.pontos_pregacao')}</strong><span>Pontos de pregação</span></div>
+          <div><strong>${rv(fmt.int(d.estrutura?.escolas_dominicais), 'estrutura.escolas_dominicais')}</strong><span>Escolas dominicais</span></div>
+          <div><strong>${rv(fmt.int(d.departamentos?.totais?.[0]), 'departamentos.totais', 0)}</strong><span>Departamentos internos</span></div>
+        </div>`, { fonte: fonte('pág. 1 · seção II') })}
+        <p class="nota">Toque em um número sublinhado para ver a origem: documento, página ou célula, extração, validação e correções.</p>`;
     } else if (aba === 'membresia') {
       const c = d.comungantes || {}, nc = d.nao_comungantes || {};
       corpo = `
         ${card('Rol atual', `<div class="sexos">${Charts.sexo(c.ano_atual, 'Comungantes')}${Charts.sexo(nc.ano_atual, 'Não comungantes')}${Charts.sexo(d.rol_atual, 'Rol total')}</div>`, { fonte: fonte('pág. 1 · seção III') })}
         ${card('Evolução no exercício', tabelaEvolucao(c, nc))}
-        ${card('Movimentação — comungantes', tabelaMov(c), { fonte: fonte('pág. 1 · seção III') })}
-        ${card('Movimentação — não comungantes', tabelaMov(nc), { fonte: fonte('pág. 1 · seção III') })}`;
+        ${card('Movimentação — comungantes', tabelaMov(c, 'comungantes'), { fonte: fonte('pág. 1 · seção III') })}
+        ${card('Movimentação — não comungantes', tabelaMov(nc, 'nao_comungantes'), { fonte: fonte('pág. 1 · seção III') })}`;
     } else if (aba === 'educacao') {
       const e = d.estrutura || {};
       const edV = Regras.variacao([r], () => e.alunos_ed_anterior, () => e.alunos_ed_atual);
@@ -512,9 +624,9 @@
       const deps = Regras.DEPARTAMENTOS.map(([k, l]) => ({ label: l, value: d.departamentos?.[k]?.[1] ?? null, n: d.departamentos?.[k]?.[0] ?? null }));
       corpo = `
         <div class="kpis k4">
-          ${kpi('Alunos (ano atual)', fmt.int(e.alunos_ed_atual), delta(edV))}
-          ${kpi('Alunos (ano anterior)', fmt.int(e.alunos_ed_anterior))}
-          ${kpi('Professores', fmt.int(e.professores_ed))}
+          ${kpi('Alunos (ano atual)', rv(fmt.int(e.alunos_ed_atual), 'estrutura.alunos_ed_atual'), delta(edV))}
+          ${kpi('Alunos (ano anterior)', rv(fmt.int(e.alunos_ed_anterior), 'estrutura.alunos_ed_anterior'))}
+          ${kpi('Professores', rv(fmt.int(e.professores_ed), 'estrutura.professores_ed'))}
           ${kpi('Alunos por professor', temValor(razao) ? razao.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—')}
         </div>
         ${card('Membros nas sociedades internas', Charts.barras(deps.map((x) => ({ label: x.label, value: x.value, tip: `${x.label}: ${fmt.int(x.value)} membros · ${fmt.int(x.n)} departamento(s)` })), { fmt: fmt.int }),
@@ -557,30 +669,34 @@
 
   const cel = (v) => (temValor(v) ? fmt.int(v) : '<span class="na" title="Não informado">—</span>');
 
-  function tabelaMov(bloco) {
+  // Célula tocável (rastreabilidade): mostra "—" quando não informado
+  const celRv = (v, caminho, i) => rv(cel(v), caminho, i);
+
+  function tabelaMov(bloco, sec) {
+    const trio = (v, caminho) => [0, 1, 2].map((i) => `<td>${i === 2 ? '<strong>' : ''}${celRv(v[i], caminho, i)}${i === 2 ? '</strong>' : ''}</td>`).join('');
     const linhas = (grupo, titulo) => {
       const ent = Object.entries(bloco?.[grupo] || {}).filter(([, v]) => Array.isArray(v));
       if (!ent.length) return '';
-      return `<tr class="grp"><th colspan="4">${titulo}</th></tr>` + ent.map(([k, v]) => `<tr${Regras.DETALHE.has(k) ? ' class="det"' : ''}><td>${esc(Regras.ROTULOS[k] || k)}</td><td>${cel(v[0])}</td><td>${cel(v[1])}</td><td><strong>${cel(v[2])}</strong></td></tr>`).join('');
+      return `<tr class="grp"><th colspan="4">${titulo}</th></tr>` + ent.map(([k, v]) => `<tr${Regras.DETALHE.has(k) ? ' class="det"' : ''}><td>${esc(Regras.ROTULOS[k] || k)}</td>${trio(v, `${sec}.${grupo}.${k}`)}</tr>`).join('');
     };
     return `<div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Movimento</th><th>Masc.</th><th>Fem.</th><th>Total</th></tr></thead>
       <tbody>${linhas('admissao', 'Admissões')}${linhas('demissao', 'Demissões')}
-        ${bloco?.rol_separado ? `<tr class="grp"><th colspan="4">Outros</th></tr><tr><td>Rol separado</td><td>${cel(bloco.rol_separado[0])}</td><td>${cel(bloco.rol_separado[1])}</td><td><strong>${cel(bloco.rol_separado[2])}</strong></td></tr>` : ''}
+        ${bloco?.rol_separado ? `<tr class="grp"><th colspan="4">Outros</th></tr><tr><td>Rol separado</td>${trio(bloco.rol_separado, `${sec}.rol_separado`)}</tr>` : ''}
       </tbody></table></div>
-      <p class="legenda"><span class="na">—</span> não informado no relatório · 0 informado como zero</p>`;
+      <p class="legenda"><span class="na">—</span> não informado no relatório · 0 informado como zero · toque em um número para ver a origem</p>`;
   }
 
   function tabelaEvolucao(c, nc) {
-    const linha = (nome, b) => `<tr><td>${nome}</td><td>${cel(T(b.ano_anterior))}</td><td>${cel(T(b.diferenca))}</td><td><strong>${cel(T(b.ano_atual))}</strong></td></tr>`;
+    const linha = (nome, b, sec) => `<tr><td>${nome}</td><td>${celRv(T(b.ano_anterior), `${sec}.ano_anterior`, 2)}</td><td>${celRv(T(b.diferenca), `${sec}.diferenca`, 2)}</td><td><strong>${celRv(T(b.ano_atual), `${sec}.ano_atual`, 2)}</strong></td></tr>`;
     return `<div class="tbl-wrap"><table class="tbl">
       <thead><tr><th></th><th>Ano anterior</th><th>Diferença</th><th>Ano atual</th></tr></thead>
-      <tbody>${linha('Comungantes', c)}${linha('Não comungantes', nc)}</tbody></table></div>`;
+      <tbody>${linha('Comungantes', c, 'comungantes')}${linha('Não comungantes', nc, 'nao_comungantes')}</tbody></table></div>`;
   }
 
   function tabelaFin(fr, fp) {
-    const brl = (v) => (temValor(v) ? fmt.brl(v) : '<span class="na" title="Não informado">—</span>');
-    const linha = (l, k, forte) => `<tr${forte ? ' class="tot"' : ''}><td>${l}</td><td>${brl(fr[k])}</td><td>${brl(fp[k])}</td></tr>`;
+    const brl = (v, caminho) => rv(temValor(v) ? fmt.brl(v) : '<span class="na" title="Não informado">—</span>', caminho);
+    const linha = (l, k, forte) => `<tr${forte ? ' class="tot"' : ''}><td>${l}</td><td>${brl(fr[k], `financeiro.realizado.${k}`)}</td><td>${brl(fp[k], `financeiro.previsto.${k}`)}</td></tr>`;
     return `<div class="tbl-wrap"><table class="tbl fin">
       <thead><tr><th>Item</th><th>Realizado</th><th>Previsto</th></tr></thead>
       <tbody>
@@ -678,7 +794,7 @@
       const antes = el.dataset.i != null ? (Array.isArray(orig) ? orig[+el.dataset.i] : undefined) : orig;
       const mudou = (antes ?? null) === null ? v !== null : v === null || Math.abs(antes - v) > 0.004;
       el.classList.toggle('mud', mudou);
-      if (mudou) alteracoes.push({ campo: el.dataset.r, de: antes ?? null, para: v });
+      if (mudou) alteracoes.push({ campo: el.dataset.r, caminho: el.dataset.p + (el.dataset.i != null ? `[${el.dataset.i}]` : ''), de: antes ?? null, para: v });
       if (el.dataset.i != null) {
         if (!arrays.has(el.dataset.p)) arrays.set(el.dataset.p, { path, orig, vals: [], els: [] });
         const a = arrays.get(el.dataset.p); a.vals[+el.dataset.i] = v; a.els[+el.dataset.i] = el;

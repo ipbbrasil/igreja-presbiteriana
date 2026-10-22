@@ -11,3 +11,4 @@ supabase/seed.sql
 # Sistema
 Thumbs.db
 .DS_Store
+supabase/origem-importacao.sql

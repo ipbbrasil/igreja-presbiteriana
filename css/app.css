@@ -330,6 +330,23 @@ select, .campos input[type="text"], .campos input[type="email"] { width: 100%; h
 .ic-btn { width: 44px; padding: 0; flex: none; }
 .env-a { display: flex; gap: 8px; align-items: center; flex: none; }
 
+/* Rastreabilidade */
+.rv { all: unset; cursor: pointer; border-bottom: 1px dotted var(--gold); line-height: inherit; }
+.rv:hover, .rv:focus-visible { background: var(--warn-bg); outline: none; }
+.hero .rv { border-bottom-color: rgba(200, 155, 60, .7); }
+.sheet-bg { position: fixed; inset: 0; z-index: 100; background: rgba(18, 32, 41, .45); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 640px; max-height: 88dvh; display: flex; flex-direction: column; background: var(--paper); border-top: 3px solid var(--gold);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, .25); padding-bottom: env(safe-area-inset-bottom); animation: sobe .18s ease-out; }
+@keyframes sobe { from { transform: translateY(30px); opacity: 0; } }
+@media (min-width: 700px) { .sheet-bg { align-items: center; } .sheet { border-radius: var(--radius); } }
+.sheet-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.sheet-h h2 { font-family: var(--serif); font-size: 19px; color: var(--navy-deep); margin: 0; }
+.sheet-c { overflow-y: auto; padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.sheet-c .dl dd .btn { margin-top: 8px; }
+.sheet-c code { font-size: 11.5px; color: var(--muted); }
+.rv-valor { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--navy-deep); margin: 0; }
+blockquote.trecho { margin: 6px 0 0; padding: 8px 10px; background: var(--paper-raise); border-left: 3px solid var(--gold); font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+
 /* Dicionário de dados */
 .tbl.dic th, .tbl.dic td { white-space: normal; text-align: left !important; vertical-align: top; font-size: 12.5px; min-width: 120px; }
 .tbl.dic td:first-child { min-width: 200px; }
@@ -367,6 +384,7 @@ details.aj[open] summary { border-bottom: 1px solid var(--line); }
 .aj-faq dt { font-weight: 600; color: var(--navy-deep); margin-top: 12px; }
 .aj-faq dt:first-child { margin-top: 0; }
 .aj-faq dd { margin: 3px 0 0; }
+.aj-rv { border-bottom: 1px dotted var(--gold); }
 .aj-cor { padding: 0 6px; border: 1px solid var(--line); border-radius: 3px; }
 .aj-cor.mud { background: var(--warn-bg); border-color: var(--warning); }
 .aj-cor.inc { box-shadow: inset 0 -3px 0 var(--warning); }
