@@ -158,7 +158,7 @@
 
   document.addEventListener('click', (e) => {
     const b = e.target.closest('.rv');
-    if (!b) return;
+    if (!b || b.closest('.previa')) return; // na prévia os valores ainda não foram gravados
     if (b.dataset.consol) return painelConsolidado(b.dataset.consol);
     const cod = b.dataset.igreja || location.hash.split('/')[2];
     const r = relPorCodigo(decodeURIComponent(cod || ''));
@@ -440,6 +440,46 @@
       <div><span>${esc(c.titulo)}</span>${c.detalhe ? `<small>${esc(c.detalhe)}</small>` : ''}</div></li>`).join('')}</ul>`;
   }
 
+  // Prévia dos valores lidos, para o representante conferir antes de enviar (seção 6, passos 9 e 10)
+  function previaHtml(leitura) {
+    const d = leitura.dados;
+    const verif = Regras.verificacoes(d);
+    const falhas = verif.filter((x) => x.ok === false), conferidas = verif.filter((x) => x.ok !== null).length;
+    // Campos inteiramente em branco no relatório (lidos como "não informado")
+    const vazios = Dicionario.campos.filter((c) => c.aba === Dicionario.ABAS.CE && !c.pendente && !c.id.startsWith('identificacao.')).filter((c) => {
+      const v = c.id.split('.').reduce((o, k) => (o == null ? undefined : o[k]), d);
+      return v === null || (Array.isArray(v) && v.every((x) => x === null));
+    }).map((c) => c.rotulo);
+    const fr = d.financeiro?.realizado || {}, fp = d.financeiro?.previsto || {}, e = d.estrutura || {};
+    const dep = [...Regras.DEPARTAMENTOS, ['totais', 'Totais']].map(([k, l]) => `<tr${k === 'totais' ? ' class="tot"' : ''}><td>${l}</td><td>${cel(d.departamentos?.[k]?.[0])}</td><td>${cel(d.departamentos?.[k]?.[1])}</td></tr>`).join('');
+    const sec = (titulo, corpo, aberto = false) => `<details class="pv"${aberto ? ' open' : ''}><summary>${titulo}</summary><div class="pv-c">${corpo}</div></details>`;
+    return `<div class="previa">
+      <h3 class="pv-t">Prévia dos dados lidos</h3>
+      <p class="nota">Confira se os números abaixo são os do relatório aprovado pelo Conselho. É assim que eles aparecerão no painel depois da validação.</p>
+      ${falhas.length
+        ? `<div class="banner warning" role="note"><b>!</b><div><strong>${falhas.length} soma(s) não conferem.</strong> Se possível, corrija no relatório e escolha o arquivo de novo.<ul class="vfs">${vfItens(falhas)}</ul></div></div>`
+        : `<div class="banner info" role="note"><b>✓</b><div><strong>As ${conferidas} somas verificáveis conferem.</strong></div></div>`}
+      <div class="kpis k4">
+        ${kpi('Rol de membros', fmt.int(T(d.rol_atual)))}
+        ${kpi('Comungantes', fmt.int(T(d.comungantes?.ano_atual)))}
+        ${kpi('Receita realizada', fmt.brlCurto(fr.total_receita))}
+        ${kpi('Despesa realizada', fmt.brlCurto(fr.total_despesa))}
+      </div>
+      ${sec('Membresia', `${tabelaEvolucao(d.comungantes || {}, d.nao_comungantes || {})}
+        <h4>Comungantes</h4>${tabelaMov(d.comungantes, 'comungantes')}<h4>Não comungantes</h4>${tabelaMov(d.nao_comungantes, 'nao_comungantes')}`, true)}
+      ${sec('Liderança, Escola Dominical e departamentos', `<div class="mini">${Regras.LIDERANCA.map(([k, l]) => `<div><strong>${fmt.int(d.lideranca?.[k])}</strong><span>${l}</span></div>`).join('')}</div>
+        <div class="mini">${[['congregacoes', 'Congregações'], ['pontos_pregacao', 'Pontos de pregação'], ['escolas_dominicais', 'Escolas dominicais'], ['professores_ed', 'Professores da ED'],
+          ['alunos_ed_atual', 'Alunos ED (atual)'], ['alunos_ed_anterior', 'Alunos ED (anterior)']].map(([k, l]) => `<div><strong>${fmt.int(e[k])}</strong><span>${l}</span></div>`).join('')}</div>
+        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Departamento</th><th>Nº deptos.</th><th>Nº membros</th></tr></thead><tbody>${dep}</tbody></table></div>`)}
+      ${sec('Finanças (realizado e previsto)', tabelaFin(fr, fp))}
+      ${d.conselho ? sec('Vida ministerial (aba do Conselho)', `<div class="mini">${[...MIN_ITENS.ceia, ...MIN_ITENS.evang, ...MIN_ITENS.educ, ...MIN_ITENS.social, ...MIN_ITENS.adm]
+        .map(([k, l]) => `<div><strong>${fmt.int(d.conselho[k])}</strong><span>${l}</span></div>`).join('')}</div>`) : ''}
+      ${sec(`Campos em branco no relatório (${vazios.length})`, vazios.length
+        ? `<p class="nota">Ficam como <strong>não informado</strong> — não viram zero. Se algum deveria ter valor, corrija o relatório antes de enviar.</p><ul class="pv-vazios">${vazios.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>`
+        : '<p class="nota">Nenhum campo inteiramente em branco.</p>')}
+    </div>`;
+  }
+
   function telaEnviar(cod) {
     const rep = S.perfil.papel === 'representante';
     const igrejas = [...S.igrejas].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -467,7 +507,8 @@
       <section class="card" id="verif" hidden>
         <header class="card-h"><h2>3. Verificação</h2><p id="verif-s">Analisando o arquivo…</p></header>
         <div id="verif-l"></div>
-        <label class="conf"><input type="checkbox" id="env-conf"> Confirmo que este é o relatório oficial aprovado pelo Conselho da igreja.</label>
+        <div id="previa"></div>
+        <label class="conf"><input type="checkbox" id="env-conf"> <span id="env-conf-t">Confirmo que este é o relatório oficial aprovado pelo Conselho da igreja.</span></label>
         <button class="btn primary wide" id="env-btn" disabled>${ic('enviar')}Enviar relatório</button>
       </section>
       ${card('Envios anteriores', listaEnvios(envios, { igreja: !sel }), { sub: sel ? esc(igrejas.find((i) => i.codigo === sel)?.nome || '') : 'Todas as igrejas' })}`;
@@ -494,6 +535,7 @@
       document.getElementById('drop-t').textContent = file.name;
       document.getElementById('drop-s').textContent = tamanho(file.size) + ' · toque para trocar';
       $verif.hidden = false; $lista.innerHTML = '<div class="carregando dark"><span class="spin"></span>Analisando…</div>'; $res.textContent = 'Analisando o arquivo…';
+      document.getElementById('previa').innerHTML = ''; $conf.checked = false;
       analise = null; atualizarBotao();
       const minha = ++rodada;
       const igreja = S.igrejas.find((i) => i.codigo === $ig.value) || { nome: '' };
@@ -510,6 +552,11 @@
         const erros = a.checks.filter((c) => c.estado === 'erro').length, avisos = a.checks.filter((c) => c.estado === 'aviso').length;
         $res.textContent = erros ? `${erros} problema(s) impedem o envio` : avisos ? `Pode enviar · ${avisos} aviso(s) para a conferência` : 'Tudo certo para enviar';
         $lista.innerHTML = checksHtml(a.checks);
+        const temPrevia = !!(a.leitura?.ok && !a.bloqueia);
+        document.getElementById('previa').innerHTML = temPrevia ? previaHtml(a.leitura) : '';
+        document.getElementById('env-conf-t').textContent = temPrevia
+          ? 'Conferi os valores da prévia e confirmo que este é o relatório oficial aprovado pelo Conselho da igreja.'
+          : 'Confirmo que este é o relatório oficial aprovado pelo Conselho da igreja.';
       } catch (e) {
         $lista.innerHTML = `<p class="erro">Não foi possível analisar: ${esc(e.message)}</p>`;
       }
