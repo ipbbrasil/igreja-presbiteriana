@@ -42,6 +42,14 @@ window.Ajuda = (() => {
         <li><strong>Primeiro acesso:</strong> é feito pelo <strong>link de convite</strong> enviado pelo administrador (veja “Usuários e convites”).</li>
         <li><strong>Sair:</strong> Perfil → <em>Sair</em>. Use sempre que trocar de usuário no mesmo aparelho.</li>
         <li><strong>Esqueci a senha:</strong> peça ao administrador do presbitério; o responsável técnico redefine a senha e você entra com a nova.</li>
+        <li><strong>Sessão aberta:</strong> depois de entrar, o aparelho continua conectado até você tocar em <em>Sair</em>. Com o app instalado, normalmente basta entrar uma vez.</li>
+      </ul>
+      <h4>Entrar com digital ou Face ID</h4>
+      <p>Use o cofre de senhas do próprio celular: ele guarda o e-mail e a senha e só preenche depois de confirmar a sua biometria.</p>
+      <ul>
+        <li><strong>iPhone (Face ID / Touch ID):</strong> entre uma vez digitando e-mail e senha e toque em <em>Salvar senha</em> quando o iPhone perguntar. Nas próximas vezes, toque no campo de e-mail, escolha a conta sugerida acima do teclado e confirme com o Face ID. Se não aparecer: <em>Ajustes → Senhas → Opções de Senha → Preencher Senhas Automaticamente</em>.</li>
+        <li><strong>Android (digital / rosto):</strong> entre uma vez e toque em <em>Salvar</em> quando o Google perguntar. Nas próximas vezes, toque no campo de e-mail, escolha a conta e confirme com a digital. Se não aparecer: <em>Configurações → Google → Gerenciador de senhas</em> (ou <em>Preenchimento automático</em>).</li>
+        <li><strong>Mais de um usuário no mesmo celular</strong> (ex.: administrador e representante): o cofre guarda as duas senhas — escolha a conta certa na sugestão.</li>
       </ul>`,
     },
     {
@@ -206,7 +214,7 @@ window.Ajuda = (() => {
     {
       id: 'problemas', titulo: 'Problemas comuns', para: ['todos'], html: `
       <dl class="aj-faq">
-        <dt>“E-mail ou senha incorretos”, mas está certo</dt><dd>O celular pode estar preenchendo uma senha salva de outro usuário. Apague o campo, digite à mão e use <em>Mostrar senha</em>.</dd>
+        <dt>“E-mail ou senha incorretos”, mas está certo</dt><dd>O celular pode estar preenchendo uma senha salva de outro usuário. Apague o campo, digite à mão e use <em>Mostrar senha</em>. Depois de entrar, aceite atualizar a senha salva no cofre do celular.</dd>
         <dt>“Seu usuário ainda não tem um perfil de acesso”</dt><dd>A conta existe, mas não está ligada a uma igreja ou presbitério. Peça um convite ao administrador e use “Já tenho conta”.</dd>
         <dt>Convite expirado ou já usado</dt><dd>Peça ao administrador para criar outro convite para o seu e-mail.</dd>
         <dt>“Exercício não confere” no envio</dt><dd>O ano escrito no documento é diferente do exercício escolhido. Troque o exercício ou envie o relatório correto.</dd>
