@@ -54,6 +54,46 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2600);
   };
 
+  // ---------- Exercício (ano) e evolução histórica ----------
+  const seletorAno = () => `<label class="sel-ano">Exercício <select id="sel-ano" aria-label="Exercício">${(S.anos.length ? S.anos : [S.ano])
+    .map((a) => `<option value="${a}"${a === S.ano ? ' selected' : ''}>${a}</option>`).join('')}</select></label>`;
+  document.addEventListener('change', (e) => {
+    if (e.target.id !== 'sel-ano') return;
+    Data.trocarAno(+e.target.value); ui.carregado = false; rota();
+  });
+
+  // Série de um indicador por ano. "ant" = campo do "ano anterior": acrescenta o ano que antecede
+  // o primeiro relatório (valor informado nele mesmo), marcado como tal.
+  function serieAnual(linhas, campo, ant) {
+    const anos = [...new Set(linhas.map((l) => l.ano))].sort((a, b) => a - b);
+    const pontos = anos.map((a) => { const c = Regras.consolidar(linhas.filter((l) => l.ano === a), (l) => l[campo]); return { ano: a, valor: c.total, n: c.n, de: c.de }; });
+    if (ant && anos.length) {
+      const c = Regras.consolidar(linhas.filter((l) => l.ano === anos[0]), (l) => l[ant]);
+      if (c.n) pontos.unshift({ ano: anos[0] - 1, valor: c.total, n: c.n, de: c.de, anterior: true });
+    }
+    return pontos;
+  }
+  const INDICADORES_EVOL = [['rol', 'rol_ant', 'Rol de membros', fmt.int], ['com', 'com_ant', 'Comungantes', fmt.int],
+    ['ed', 'ed_ant', 'Alunos da Escola Dominical', fmt.int], ['rec', null, 'Receita anual realizada', fmt.brlCurto]];
+
+  // Quadro de evolução: um minigráfico por indicador (escalas diferentes não dividem eixo)
+  function cardEvolucao(linhas, { titulo = 'Evolução histórica', sub = '', igreja = false } = {}) {
+    const blocos = INDICADORES_EVOL.map(([c, a, nome, f], i) => {
+      const p = serieAnual(linhas, c, a);
+      const reais = p.filter((x) => !x.anterior && Regras.temValor(x.valor));
+      const ult = reais[reais.length - 1];
+      const ns = new Set(p.filter((x) => Regras.temValor(x.valor)).map((x) => x.n));
+      return `<div class="evo">
+        <div class="evo-h"><span>${nome}</span><strong>${ult ? f(ult.valor) : '—'}</strong></div>
+        ${Charts.linha(p, { fmt: f, serie: i + 1, unidade: igreja ? 'relatório' : 'igreja' })}
+        ${!igreja && ns.size > 1 ? '<p class="evo-n">Atenção: conjunto de igrejas diferente entre os anos — parte da mudança pode ser cobertura, não crescimento.</p>' : ''}
+      </div>`;
+    }).join('');
+    const anosReais = [...new Set(linhas.map((l) => l.ano))];
+    return card(titulo, `<div class="evos">${blocos}</div>
+      <p class="nota">${anosReais.length < 2 ? 'Por enquanto há relatórios de um só exercício; o ponto vazado (linha tracejada) é o “ano anterior” informado nesse mesmo relatório. A série cresce a cada exercício enviado.' : 'Ponto vazado e linha tracejada: valor informado como “ano anterior” no relatório seguinte.'} Toque nos pontos para ver valores e quantas igrejas contribuíram.</p>`, { sub });
+  }
+
   // ---------- Variações relevantes ----------
   // Limite escolhido pelo usuário (fica salvo só neste aparelho)
   const lerLimite = () => { try { return +localStorage.getItem('painel.limiteVar') || Regras.LIMITES_VARIACAO.pct; } catch (e) { return Regras.LIMITES_VARIACAO.pct; } };
@@ -337,6 +377,7 @@
           <div class="metric-pill"><span class="num">${rvc(fmt.int(nc.total), 'nc')}</span><span class="label">Não comungantes</span><span class="d">${dTxt(ncV)}</span></div>
           <div class="metric-pill"><span class="num">${base.length} <small>de ${cadastradas}</small></span><span class="label">Igrejas consideradas</span><span class="d">${validados.length} validados · ${todos.length} recebidos${faltam.length ? ` · ${faltam.length} ${faltam.length === 1 ? 'não enviou' : 'não enviaram'}` : ''}</span></div>
         </div>
+        <div class="hero-ano">${seletorAno()}</div>
         <div class="seg" role="group" aria-label="Relatórios considerados">
           <button class="${ui.escopo === 'validados' ? 'on' : ''}" data-escopo="validados">Somente validados (${validados.length})</button>
           <button class="${ui.escopo === 'todos' ? 'on' : ''}" data-escopo="todos">Todos recebidos (${todos.length})</button>
@@ -356,6 +397,9 @@
         ${kpi('Receita anual realizada', rvc(fmt.brlCurto(rec.total), 'rec'), '', cobertura(rec))}
         ${kpi('Despesa anual realizada', rvc(fmt.brlCurto(desp.total), 'desp'), '', cobertura(desp))}
       </div>
+
+      ${cardEvolucao(S.historico.filter((l) => ui.escopo === 'todos' || l.status === 'validado'),
+        { sub: `Por exercício · ${ui.escopo === 'todos' ? 'todos os relatórios recebidos' : 'somente relatórios validados'}` })}
 
       ${(() => {
         const rel = base.flatMap((r) => variacoes(r).filter((x) => x.relevante).map((x) => ({ r, x })))
@@ -449,7 +493,7 @@
     const faltam = Data.naoEnviadas().length;
     return {
       title: 'Igrejas', sub: `${rels.length} relatórios${faltam ? ` · ${faltam} não enviados` : ''} · ${S.ano}`,
-      body: `<div class="btns">${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
+      body: `${seletorAno()}<div class="btns">${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn primary" href="#/enviar">${ic('enviar')}Enviar relatório</a>` : ''}
         ${S.perfil.papel === 'admin_presbiterial' ? `<a class="btn" href="#/cadastro">${ic('igrejas')}Cadastro de igrejas</a>` : ''}</div>
         <label class="busca">${ic('busca')}<input type="search" id="q" placeholder="Buscar igreja ou cidade" autocomplete="off"></label>
         <div class="lista" id="lista">${itens}</div><p class="vazio" id="nada" hidden>Nenhuma igreja encontrada.</p>`,
@@ -686,7 +730,13 @@
 
   function telaIgreja(cod, aba = 'geral') {
     const r = relPorCodigo(cod);
-    if (!r) return { title: 'Igreja não encontrada', body: card('', '<p>Este relatório não existe ou você não tem acesso a ele.</p>'), back: '#/igrejas' };
+    if (!r) {
+      // Sem relatório no exercício escolhido (ou sem acesso): oferece trocar de ano ou enviar
+      const temOutroAno = S.historico.some((l) => l.codigo === cod);
+      return { title: 'Sem relatório', sub: `Exercício ${S.ano}`, back: S.perfil.papel === 'representante' ? null : '#/igrejas',
+        body: `${seletorAno()}${card('', `<p>Não há relatório de <strong>${S.ano}</strong> para esta igreja${temOutroAno ? ' — escolha outro exercício acima para ver os anteriores' : ' ou você não tem acesso a ele'}.</p>
+          ${Data.podeEnviar() && !Data.exercicioFechado() ? `<a class="btn primary" href="#/enviar/${esc(cod)}">${ic('enviar')}Enviar relatório de ${S.ano}</a>` : ''}`)}` };
+    }
     const d = r.dados;
     const v = contaVerif(r);
     const pend = r.alertas.length + v.falhas;
@@ -715,6 +765,7 @@
           <div><strong>${rv(fmt.int(d.estrutura?.escolas_dominicais), 'estrutura.escolas_dominicais')}</strong><span>Escolas dominicais</span></div>
           <div><strong>${rv(fmt.int(d.departamentos?.totais?.[0]), 'departamentos.totais', 0)}</strong><span>Departamentos internos</span></div>
         </div>`, { fonte: fonte('pág. 1 · seção II') })}
+        ${cardEvolucao(S.historico.filter((l) => l.codigo === cod), { titulo: 'Evolução da igreja', sub: 'Por exercício (relatórios recebidos)', igreja: true })}
         ${card('Variações no ano', tabelaVariacoes(variacoes(r).map((x) => ({ r, x }))),
           { sub: `Ano anterior × ano atual · relevante a partir de ${Math.round(ui.limiteVar * 100)}% e ${Regras.LIMITES_VARIACAO.minimo} pessoas${variacoes(r).some((x) => x.relevante) ? '' : ' · nenhuma variação relevante'}` })}
         <p class="nota">Toque em um número sublinhado para ver a origem: documento, página ou célula, extração, validação e correções.</p>`;
@@ -760,7 +811,7 @@
     }
 
     const head = `<section class="card ig-head">
-        <div class="ig-top">${chip(r.status)}<span class="muted">${esc(r.igreja.codigo)}</span></div>
+        <div class="ig-top">${chip(r.status)}${seletorAno()}</div>
         <p class="muted">${esc(r.igreja.cidade)} · ${esc(r.igreja.uf)} · organizada em ${fmt.data(r.igreja.organizacao)}</p>
         <p class="muted small">${ic('arquivo')} ${esc(r.arquivo)} · ${esc(formatoTxt(r))} · ${esc(r.modelo || 'modelo não identificado')}</p>
         <div class="btns ig-acoes">
@@ -1065,7 +1116,7 @@
           <span class="muted">${esc(i.cidade || '')}${i.uf ? ` · ${esc(i.uf)}` : ''} · nenhum relatório recebido</span></div>${ic('seta', 'chev')}</a>`).join('')}</div></section>` : '';
     return {
       title: 'Conferência', sub: `Relatórios ${S.ano}`,
-      body: `${quadroExercicio()}<p class="nota top">O sistema recalcula as somas de cada relatório e aponta divergências. A validação final é sempre de um responsável autorizado.</p>${blocoEnvios}${body}${blocoFaltam}`,
+      body: `${seletorAno()}${quadroExercicio()}<p class="nota top">O sistema recalcula as somas de cada relatório e aponta divergências. A validação final é sempre de um responsável autorizado.</p>${blocoEnvios}${body}${blocoFaltam}`,
       after: ligarExercicio,
     };
   }
@@ -1173,7 +1224,7 @@
   function telaNacional() {
     return {
       title: 'Igreja Presbiteriana do Brasil', sub: `Visão nacional · ${S.ano}`,
-      body: `<nav class="trilha" aria-label="Hierarquia"><span>Igreja Presbiteriana do Brasil</span></nav><div id="nac"><div class="carregando dark"><span class="spin"></span>Consolidando…</div></div>`,
+      body: `<nav class="trilha" aria-label="Hierarquia"><span>Igreja Presbiteriana do Brasil</span></nav>${seletorAno()}<div id="nac"><div class="carregando dark"><span class="spin"></span>Consolidando…</div></div>`,
       after: async () => {
         const el = document.getElementById('nac');
         try {
@@ -1224,7 +1275,7 @@
           const porPresb = agruparPor(linhas, 'presbiterio_sigla');
           const comPresb = Object.entries(porPresb).map(([p, ls]) => ({ p, ls, a: agregar(ls) }));
           el.innerHTML = `
-            <nav class="trilha" aria-label="Hierarquia"><a href="#/nacional">Igreja Presbiteriana do Brasil</a>${ic('seta')}<span>${esc(nome)}</span></nav>
+            <nav class="trilha" aria-label="Hierarquia"><a href="#/nacional">Igreja Presbiteriana do Brasil</a>${ic('seta')}<span>${esc(nome)}</span></nav>${seletorAno()}
             ${comPresb.length < presbs.length || t.validados < t.igrejas ? `<div class="banner info" role="note"><b>i</b><div><strong>Dados parciais do sínodo.</strong> ${comPresb.length} de ${presbs.length} presbitério(s) com igrejas na plataforma; ${t.validados} de ${t.igrejas} igrejas com relatório validado. Os totais não representam o sínodo inteiro.</div></div>` : ''}
             <div class="kpis k4">
               ${kpi('Presbitérios cadastrados', fmt.int(presbs.length))}

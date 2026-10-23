@@ -65,6 +65,38 @@ window.Charts = (() => {
     </div>`;
   }
 
+  // Linha de evolução de UM indicador ao longo dos exercícios (uma série, sem legenda: o título nomeia).
+  // pontos: [{ ano, valor, n, de, anterior? }] — "anterior": valor informado como "ano anterior" no relatório
+  // seguinte (ponto vazado e trecho tracejado). Rótulo direto no primeiro e no último ponto; dica em todos.
+  function linha(pontos, { fmt = (v) => v, serie = 1, unidade = 'igreja' } = {}) {
+    const ok = pontos.filter((p) => Regras.temValor(p.valor));
+    if (!ok.length) return '<p class="vazio">Sem dados informados</p>';
+    const W = 300, H = 118, PX = 30, PT = 22, PB = 22;
+    const anos = ok.map((p) => p.ano), a0 = Math.min(...anos), a1 = Math.max(...anos);
+    let lo = Math.min(...ok.map((p) => p.valor)), hi = Math.max(...ok.map((p) => p.valor));
+    if (lo === hi) { lo -= Math.max(1, Math.abs(lo) * 0.1); hi += Math.max(1, Math.abs(hi) * 0.1); }
+    const folga = (hi - lo) * 0.18; lo -= folga; hi += folga;
+    const x = (a) => (a0 === a1 ? W / 2 : PX + ((a - a0) / (a1 - a0)) * (W - 2 * PX));
+    const y = (v) => PT + (1 - (v - lo) / (hi - lo)) * (H - PT - PB);
+    const cor = `var(--series-${serie})`;
+    let trechos = '';
+    for (let i = 1; i < ok.length; i++) {
+      const p = ok[i - 1], q = ok[i];
+      trechos += `<line x1="${x(p.ano)}" y1="${y(p.valor)}" x2="${x(q.ano)}" y2="${y(q.valor)}" stroke="${cor}" stroke-width="2" stroke-linecap="round"${p.anterior || q.anterior ? ' stroke-dasharray="4 4"' : ''}/>`;
+    }
+    const dica = (p) => esc(`${p.ano}: ${fmt(p.valor)}${p.n != null ? ` · ${p.n} ${p.n === 1 ? unidade : unidade + 's'}` : ''}${p.anterior ? ' · informado como “ano anterior” no relatório seguinte' : ''}`);
+    const marcas = ok.map((p, i) => {
+      const cx = x(p.ano), cy = y(p.valor), rotulo = i === 0 || i === ok.length - 1;
+      return `<g data-tip="${dica(p)}">
+        <circle cx="${cx}" cy="${cy}" r="14" fill="transparent"/>
+        <circle cx="${cx}" cy="${cy}" r="4.5" fill="${p.anterior ? 'var(--paper-raise)' : cor}" stroke="${p.anterior ? cor : 'var(--paper-raise)'}" stroke-width="2"/>
+        ${rotulo ? `<text x="${cx}" y="${cy - 10}" text-anchor="middle" class="ln-v">${esc(fmt(p.valor))}</text>` : ''}
+        <text x="${cx}" y="${H - 6}" text-anchor="middle" class="ln-a">${p.ano}</text></g>`;
+    }).join('');
+    return `<svg class="linha" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(ok.map((p) => `${p.ano}: ${fmt(p.valor)}`).join('; '))}">
+      <line x1="${PX - 14}" y1="${H - PB}" x2="${W - PX + 14}" y2="${H - PB}" class="ln-base"/>${trechos}${marcas}</svg>`;
+  }
+
   // Tooltip global para qualquer [data-tip] (mouse e toque)
   function ligarTooltip() {
     const tip = document.getElementById('tip');
@@ -91,5 +123,5 @@ window.Charts = (() => {
     window.addEventListener('hashchange', esconder);
   }
 
-  return { barras, composicao, sexo, ligarTooltip, esc };
+  return { barras, composicao, sexo, linha, ligarTooltip, esc };
 })();

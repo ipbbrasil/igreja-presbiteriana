@@ -332,6 +332,22 @@ select, .campos input[type="text"], .campos input[type="email"], .campos input[t
 .ic-btn { width: 44px; padding: 0; flex: none; }
 .env-a { display: flex; gap: 8px; align-items: center; flex: none; }
 
+/* Exercício e evolução histórica */
+.sel-ano { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.sel-ano select { width: auto; height: 34px; padding: 0 8px; font-weight: 600; color: var(--navy-deep); }
+.hero .sel-ano { color: var(--on-dark-2); margin-bottom: 10px; }
+.hero .sel-ano select { background: var(--paper); }
+.evos { display: grid; gap: 14px; }
+@media (min-width: 640px) { .evos { grid-template-columns: 1fr 1fr; } }
+.evo { border: 1px solid var(--line); background: var(--paper); padding: 10px 12px 6px; }
+.evo-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.evo-h strong { font-family: var(--serif); font-size: 18px; color: var(--navy-deep); }
+.evo-n { font-size: 11.5px; color: var(--warning-ink); margin: 2px 0 6px; }
+svg.linha { width: 100%; height: auto; display: block; overflow: visible; }
+svg.linha .ln-base { stroke: var(--line); stroke-width: 1; }
+svg.linha .ln-v { font-size: 10.5px; font-weight: 600; fill: var(--ink-2); }
+svg.linha .ln-a { font-size: 10px; fill: var(--muted); }
+
 /* Variações relevantes */
 .flag.alta { background: var(--info-bg); color: var(--info-ink); }
 .flag.queda { background: var(--warn-bg); color: var(--warning-ink); }

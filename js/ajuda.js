@@ -63,6 +63,8 @@ window.Ajuda = (() => {
       id: 'painel', titulo: 'Painel do presbitério', para: ['admin'], html: `
       <p>Tela inicial do administrador com os números consolidados do exercício.</p>
       <ul>
+        <li><strong>Exercício:</strong> o seletor no topo troca o ano mostrado em todo o aplicativo (painel, igrejas, conferência, sínodo e nacional). A escolha fica salva neste aparelho; o padrão é o ano mais recente com relatórios.</li>
+        <li><strong>Evolução histórica:</strong> um minigráfico por indicador (rol de membros, comungantes, alunos da Escola Dominical e receita) ao longo dos exercícios. O ponto vazado com linha tracejada é o valor informado como “ano anterior” no relatório seguinte — assim, já no primeiro ano há dois pontos. Se o conjunto de igrejas muda entre os anos, um aviso alerta que parte da mudança pode ser cobertura e não crescimento real.</li>
         <li><strong>Somente validados / Todos recebidos:</strong> escolhe quais relatórios entram nos totais. O padrão é <em>somente validados</em>; “todos” mostra um aviso de que inclui dados não conferidos. Essa escolha vale também para a exportação.</li>
         <li><strong>Membros, comungantes e não comungantes:</strong> com a variação do ano (calculada só com igrejas que informaram os dois anos). <strong>Toque no número</strong> para ver quais igrejas compõem o total.</li>
         <li><strong>Igrejas consideradas:</strong> “X de Y” compara com todas as igrejas cadastradas, incluindo as que <strong>não enviaram</strong>.</li>
@@ -81,7 +83,7 @@ window.Ajuda = (() => {
       <p><strong>Igrejas</strong> (administrador): lista com busca, situação de cada relatório, pendências e selo de <em>variação relevante</em>. As igrejas que ainda não enviaram aparecem como <strong>Não enviado</strong> (tocar abre o envio em nome da igreja). Botões <em>Enviar relatório</em> e <em>Cadastro de igrejas</em>. O representante vai direto para <strong>Minha igreja</strong>.</p>
       <h4>Abas da página da igreja</h4>
       <ul>
-        <li><strong>Visão geral:</strong> rol de membros, comungantes, Escola Dominical, finanças, liderança, estrutura e as <strong>variações no ano</strong>.</li>
+        <li><strong>Visão geral:</strong> rol de membros, comungantes, Escola Dominical, finanças, liderança, estrutura, a <strong>evolução da igreja</strong> ao longo dos exercícios e as <strong>variações no ano</strong>. O seletor de <strong>exercício</strong> no topo mostra os relatórios de outros anos.</li>
         <li><strong>Membresia:</strong> admissões e demissões por tipo e sexo, evolução do ano anterior para o atual.</li>
         <li><strong>Educação:</strong> Escola Dominical e departamentos internos (UCP, UPA, UMP, SAF, UPH).</li>
         <li><strong>Finanças:</strong> receitas e despesas — realizado no ano e previsão para o próximo.</li>
@@ -296,6 +298,7 @@ window.Ajuda = (() => {
       id: 'config', titulo: 'Todas as configurações', para: ['todos', 'tec'], html: `
       <h4>No aplicativo (qualquer usuário)</h4>
       <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Configuração</th><th>Onde</th><th>Efeito</th></tr></thead><tbody>
+        <tr><td>Exercício (ano)</td><td>Seletor no topo do painel, das igrejas, da conferência, da página da igreja, do sínodo e da visão nacional</td><td>Qual ano é mostrado em todo o aplicativo (fica salvo neste aparelho)</td></tr>
         <tr><td>Somente validados / Todos recebidos</td><td>Painel do presbitério</td><td>Quais relatórios entram nos totais, gráficos e exportações</td></tr>
         <tr><td>Limite de variação relevante (10% a 30%)</td><td>Painel → Variações relevantes no ano</td><td>A partir de quanto uma mudança é alertada (fica salvo neste aparelho)</td></tr>
         <tr><td>Exercício do envio</td><td>Enviar → 1. Relatório</td><td>Ano do relatório enviado (deve bater com o documento)</td></tr>
@@ -319,7 +322,7 @@ window.Ajuda = (() => {
       <h4>Responsável técnico (Supabase e código)</h4>
       <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Configuração</th><th>Onde</th><th>Efeito</th></tr></thead><tbody>
         <tr><td>Endereço e chave pública do Supabase</td><td><code>js/config.js</code> (SUPABASE_URL, SUPABASE_ANON_KEY)</td><td>Banco que o site usa. Use só a chave <em>publishable</em>, nunca a secreta</td></tr>
-        <tr><td>Exercício padrão</td><td><code>js/config.js</code> (ANO_PADRAO)</td><td>Ano exibido no painel</td></tr>
+        <tr><td>Exercício padrão</td><td><code>js/config.js</code> (ANO_PADRAO)</td><td>Só é usado quando ainda não há relatório nenhum; os anos com relatório aparecem sozinhos no seletor de exercício</td></tr>
         <tr><td>Dicionário de dados (células do modelo)</td><td><code>js/dicionario.js</code> · página Perfil → Dicionário de dados</td><td>Define de onde cada campo é lido no Excel; ajustar aqui se a IPB publicar nova versão do modelo</td></tr>
         <tr><td>Estrutura do banco</td><td>SQL Editor, nesta ordem: <code>schema.sql</code>, <code>002_envios</code>, <code>003_leitura</code>, <code>004_correcoes</code>, <code>005_usuarios</code>, <code>006_exercicio</code>, <code>007_cadastro</code>, <code>008_auditoria</code>, <code>009_nacional</code>, <code>010_estrutura</code>, <code>011_restricao</code>, <code>012_acessos_superiores</code></td><td>Tabelas, regras de acesso, pasta privada, funções e gatilhos (o 011 impede que contas sem perfil vejam qualquer dado; o 012 lista os acessos de nível superior)</td></tr>
         <tr><td>Confirmação de e-mail</td><td>Authentication → Sign In / Providers → Email → <em>Confirm email</em></td><td>Deve ficar <strong>desligada</strong> para o convite criar a conta na hora</td></tr>
@@ -339,6 +342,7 @@ window.Ajuda = (() => {
         <dt>“Seu usuário ainda não tem um perfil de acesso”</dt><dd>A conta existe, mas não está ligada a uma igreja ou presbitério — por segurança, ela não vê nenhum dado. Peça um convite ao administrador e use “Já tenho conta”.</dd>
         <dt>Convite expirado ou já usado</dt><dd>Peça ao administrador para criar outro convite para o seu e-mail.</dd>
         <dt>“Exercício não confere” no envio</dt><dd>O ano escrito no documento é diferente do exercício escolhido. Troque o exercício ou envie o relatório correto.</dd>
+        <dt>“Não há relatório deste exercício para esta igreja”</dt><dd>O ano escolhido no seletor de exercício ainda não tem relatório dessa igreja. Escolha outro ano no topo da tela ou envie o relatório.</dd>
         <dt>“O exercício está fechado”</dt><dd>O administrador encerrou o ano. Para enviar ou corrigir algo, ele precisa reabrir o exercício (com motivo) na tela Conferência.</dd>
         <dt>“Arquivo já enviado”</dt><dd>Esse mesmo arquivo já está no sistema para essa igreja e ano. Se houve correção, envie o arquivo corrigido.</dd>
         <dt>PDF digitalizado (imagem)</dt><dd>Pode ser enviado, mas os números serão digitados pelo administrador. Sempre que possível, envie o Excel ou o PDF gerado direto do Excel do modelo.</dd>
@@ -363,6 +367,7 @@ window.Ajuda = (() => {
         <dt>Não enviado</dt><dd>Igreja cadastrada que ainda não mandou o relatório do exercício.</dd>
         <dt>Versão do relatório</dt><dd>Cada novo envio lido gera uma versão; as antigas ficam como “Substituída”.</dd>
         <dt>Variação relevante</dt><dd>Mudança do ano anterior para o atual acima do limite (padrão 15% e 5 pessoas), classificada como real, informada ou a verificar.</dd>
+        <dt>Exercício</dt><dd>Ano a que o relatório se refere (ex.: o relatório entregue em 2026 é do exercício 2025).</dd>
         <dt>Exercício fechado / resultado oficial</dt><dd>Ano encerrado pelo administrador: os relatórios validados formam o resultado oficial e nada mais pode ser alterado sem reabertura.</dd>
         <dt>Rastreabilidade</dt><dd>Possibilidade de ver, para cada número, o documento, a página ou célula, a extração, a validação e as correções.</dd>
         <dt>Superadministrador</dt><dd>Conta que cuida da estrutura conciliar (sínodos e presbitérios) da plataforma.</dd>

@@ -20,7 +20,11 @@ window.Data = (() => {
     exercicio: { situacao: 'aberto' },  // situação do exercício (aberto / fechado)
     eventosExercicio: [],               // fechamentos e reaberturas
     cadastradas: [],    // igrejas vinculadas ao presbitério (inclui as que não enviaram)
+    anos: [],           // exercícios disponíveis para escolha
+    historico: [],      // resumo de todos os anos: { ano, status, codigo, rol, com, nc, ed, rec, rol_ant, com_ant, nc_ant, ed_ant }
   };
+  const lerPref = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const gravarPref = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* sem storage */ } };
 
   const chaveLocal = 'painel.perfilLocal';
   const lerLocal = () => { try { return JSON.parse(sessionStorage.getItem(chaveLocal)); } catch { return null; } };
@@ -70,12 +74,37 @@ window.Data = (() => {
     if (state.modo === 'supabase') await sb.auth.signOut();
     gravarLocal(null);
     state.usuario = state.perfil = null;
-    state.relatorios = [];
+    state.relatorios = []; state.anos = []; state.historico = [];
   }
 
   // ---------- Carga ----------
+  // ---------- Exercícios (anos) ----------
+  // Anos com relatório + ano padrão + ano anterior ao atual (os relatórios são sempre do ano que passou)
+  async function iniciarAnos() {
+    const { data } = await sb.from('relatorios').select('ano').neq('status', 'substituido');
+    const comDados = [...new Set((data || []).map((r) => r.ano))];
+    state.anos = [...new Set([...comDados, cfg.ANO_PADRAO, new Date().getFullYear() - 1])].sort((a, b) => b - a);
+    const salvo = +lerPref('painel.ano');
+    state.ano = state.anos.includes(salvo) ? salvo : (comDados.length ? Math.max(...comDados) : cfg.ANO_PADRAO);
+  }
+  function trocarAno(ano) { state.ano = ano; gravarPref('painel.ano', ano); }
+
+  // Resumo de todos os anos para os gráficos de evolução (só os campos usados)
+  async function carregarHistorico() {
+    const { data, error } = await sb.from('relatorios').select('ano, status, igrejas(codigo), rol:dados->rol_atual, com:dados->comungantes->ano_atual, com_ant:dados->comungantes->ano_anterior, nc:dados->nao_comungantes->ano_atual, nc_ant:dados->nao_comungantes->ano_anterior, ed:dados->estrutura->alunos_ed_atual, ed_ant:dados->estrutura->alunos_ed_anterior, rec:dados->financeiro->realizado->total_receita')
+      .neq('status', 'substituido');
+    state.historico = error ? [] : data.map((r) => resumoHistorico(r.ano, r.status, r.igrejas?.codigo, r));
+  }
+  function resumoHistorico(ano, status, codigo, x) {
+    const T = Regras.T, num = (v) => (typeof v === 'number' ? v : null);
+    const com_ant = T(x.com_ant), nc_ant = T(x.nc_ant);
+    return { ano, status, codigo, rol: T(x.rol), com: T(x.com), nc: T(x.nc), ed: num(x.ed), rec: num(x.rec),
+      com_ant, nc_ant, rol_ant: com_ant != null && nc_ant != null ? com_ant + nc_ant : null, ed_ant: num(x.ed_ant) };
+  }
+
   async function carregar() {
     if (state.modo === 'local') return carregarLocal();
+    if (!state.anos.length) await iniciarAnos();
     const { data, error } = await sb.from('relatorios')
       .select('id, ano, versao, status, arquivo, tipo_pdf, modelo, dados, extraido_em, igrejas(codigo, nome, cidade, uf, organizacao), presbiterios(nome, sigla, sinodos(nome, sigla)), alertas(nivel, campo, mensagem), historico_status(status, comentario, criado_em)')
       .eq('ano', state.ano)
@@ -94,6 +123,7 @@ window.Data = (() => {
     state.igrejas = state.perfil.igreja ? [state.perfil.igreja] : state.relatorios.map((r) => r.igreja);
     await carregarEnvios();
     await carregarExercicio();
+    await carregarHistorico();
   }
 
   // Situação do exercício e igrejas vinculadas ao presbitério (para "Não enviado")
@@ -272,6 +302,13 @@ window.Data = (() => {
     state.exercicio = state.exercicio || { situacao: 'aberto' };
     state.eventosExercicio = state.eventosExercicio || [];
     state.cadastradas = state.perfil?.papel === 'representante' ? [] : rels.map((r) => r.igreja);
+    state.anos = [state.ano];
+    state.historico = rels.map((r) => {
+      const d = r.dados;
+      return resumoHistorico(r.ano, r.status, r.igreja.codigo, { rol: d.rol_atual, com: d.comungantes?.ano_atual, com_ant: d.comungantes?.ano_anterior,
+        nc: d.nao_comungantes?.ano_atual, nc_ant: d.nao_comungantes?.ano_anterior, ed: d.estrutura?.alunos_ed_atual, ed_ant: d.estrutura?.alunos_ed_anterior,
+        rec: d.financeiro?.realizado?.total_receita });
+    });
   }
 
   // ---------- Envio de relatórios ----------
@@ -402,7 +439,7 @@ window.Data = (() => {
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
-    exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
+    trocarAno, exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
     painelNacional, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, listarAcessosSuperiores, removerAcesso, verConvite, usarConvite,
   };
