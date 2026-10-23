@@ -30,6 +30,7 @@ window.Privacidade = (() => {
           <li><strong>Administrador do presbitério:</strong> as igrejas sob a jurisdição do presbitério, os usuários e o registro de ações do presbitério.</li>
           <li><strong>Visões do sínodo e nacional:</strong> apenas <strong>totais agregados</strong> por presbitério e UF — nunca os dados de uma igreja específica nem dados pessoais.</li>
           <li>Os arquivos originais só podem ser abertos por quem tem acesso à igreja, por meio de link temporário (10 minutos).</li>
+          <li>Quem não recebeu convite (ou não está logado) não vê nenhum dado da plataforma.</li>
         </ul>`)}
       ${sec('6. Onde os dados ficam e como são protegidos', `<ul>
           <li>Os dados e arquivos ficam no serviço de banco de dados em nuvem <strong>Supabase</strong>; o site é publicado pelo <strong>GitHub Pages</strong>, que hospeda apenas o programa, sem dados.</li>

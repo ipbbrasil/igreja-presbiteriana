@@ -269,6 +269,7 @@ window.Ajuda = (() => {
       id: 'seguranca', titulo: 'Privacidade e segurança dos dados', para: ['todos'], html: `
       <ul>
         <li><strong>Regras de acesso no banco de dados:</strong> cada consulta é filtrada pelo próprio banco conforme o papel e a jurisdição do usuário — não é possível ver dados de outra igreja ou presbitério “por fora” do site.</li>
+        <li><strong>Sem convite, nada:</strong> uma conta criada sem convite (sem perfil de acesso) não vê nenhum dado — nem relatórios nem a lista de igrejas, presbitérios e sínodos. Sem login, também nada é visível.</li>
         <li><strong>Arquivos originais</strong> em pasta privada, abertos só por link temporário (10 minutos).</li>
         <li><strong>Visões do sínodo e nacional</strong> mostram apenas totais agregados.</li>
         <li><strong>Dados pessoais</strong> do secretário que constam no formulário não são extraídos nem exibidos; ficam só no arquivo original.</li>
@@ -318,7 +319,7 @@ window.Ajuda = (() => {
         <tr><td>Endereço e chave pública do Supabase</td><td><code>js/config.js</code> (SUPABASE_URL, SUPABASE_ANON_KEY)</td><td>Banco que o site usa. Use só a chave <em>publishable</em>, nunca a secreta</td></tr>
         <tr><td>Exercício padrão</td><td><code>js/config.js</code> (ANO_PADRAO)</td><td>Ano exibido no painel</td></tr>
         <tr><td>Dicionário de dados (células do modelo)</td><td><code>js/dicionario.js</code> · página Perfil → Dicionário de dados</td><td>Define de onde cada campo é lido no Excel; ajustar aqui se a IPB publicar nova versão do modelo</td></tr>
-        <tr><td>Estrutura do banco</td><td>SQL Editor, nesta ordem: <code>schema.sql</code>, <code>002_envios</code>, <code>003_leitura</code>, <code>004_correcoes</code>, <code>005_usuarios</code>, <code>006_exercicio</code>, <code>007_cadastro</code>, <code>008_auditoria</code>, <code>009_nacional</code>, <code>010_estrutura</code></td><td>Tabelas, regras de acesso, pasta privada, funções e gatilhos</td></tr>
+        <tr><td>Estrutura do banco</td><td>SQL Editor, nesta ordem: <code>schema.sql</code>, <code>002_envios</code>, <code>003_leitura</code>, <code>004_correcoes</code>, <code>005_usuarios</code>, <code>006_exercicio</code>, <code>007_cadastro</code>, <code>008_auditoria</code>, <code>009_nacional</code>, <code>010_estrutura</code>, <code>011_restricao</code></td><td>Tabelas, regras de acesso, pasta privada, funções e gatilhos (o 011 impede que contas sem perfil vejam qualquer dado)</td></tr>
         <tr><td>Confirmação de e-mail</td><td>Authentication → Sign In / Providers → Email → <em>Confirm email</em></td><td>Deve ficar <strong>desligada</strong> para o convite criar a conta na hora</td></tr>
         <tr><td>Criar o superadministrador</td><td>Authentication → Users → Add user (Auto Confirm) e depois SQL na tabela <code>perfis</code> com papel <code>superadmin</code></td><td>Conta que cadastra sínodos e presbitérios</td></tr>
         <tr><td>Perfis manuais</td><td>SQL Editor, tabela <code>perfis</code></td><td>Papel (superadmin, admin_nacional, admin_sinodal, admin_presbiterial, representante) e vínculo</td></tr>
@@ -333,7 +334,7 @@ window.Ajuda = (() => {
       id: 'problemas', titulo: 'Problemas comuns', para: ['todos'], html: `
       <dl class="aj-faq">
         <dt>“E-mail ou senha incorretos”, mas está certo</dt><dd>O celular pode estar preenchendo uma senha salva de outro usuário. Apague o campo, digite à mão e use <em>Mostrar senha</em>. Depois de entrar, aceite atualizar a senha salva no cofre do celular.</dd>
-        <dt>“Seu usuário ainda não tem um perfil de acesso”</dt><dd>A conta existe, mas não está ligada a uma igreja ou presbitério. Peça um convite ao administrador e use “Já tenho conta”.</dd>
+        <dt>“Seu usuário ainda não tem um perfil de acesso”</dt><dd>A conta existe, mas não está ligada a uma igreja ou presbitério — por segurança, ela não vê nenhum dado. Peça um convite ao administrador e use “Já tenho conta”.</dd>
         <dt>Convite expirado ou já usado</dt><dd>Peça ao administrador para criar outro convite para o seu e-mail.</dd>
         <dt>“Exercício não confere” no envio</dt><dd>O ano escrito no documento é diferente do exercício escolhido. Troque o exercício ou envie o relatório correto.</dd>
         <dt>“O exercício está fechado”</dt><dd>O administrador encerrou o ano. Para enviar ou corrigir algo, ele precisa reabrir o exercício (com motivo) na tela Conferência.</dd>
