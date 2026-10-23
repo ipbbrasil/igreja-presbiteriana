@@ -1,9 +1,8 @@
 // Exportação do consolidado, gerada no próprio aparelho: planilha Excel (SheetJS) e resumo em PDF (jsPDF).
 // Usa os mesmos relatórios do painel (somente validados ou todos) e mantém "não informado" como célula vazia.
 window.Exportar = (() => {
-  const SHEETJS = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-  const JSPDF = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-  const AUTOTABLE = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+  // Bibliotecas (endereço e impressão digital) ficam em Envio.carregarScript
+  const SHEETJS = 'SHEETJS', JSPDF = 'JSPDF', AUTOTABLE = 'AUTOTABLE';
   const { T, fmt, STATUS, ROTULOS, somaBloco, consolidar, variacao, verificacoes, LIDERANCA, DEPARTAMENTOS, RECEITAS, DESPESAS } = Regras;
   const val = (v) => (v === undefined ? null : v);
 

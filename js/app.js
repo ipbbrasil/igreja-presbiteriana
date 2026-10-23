@@ -14,6 +14,7 @@
     sinodo: '<path d="M12 3 2 8l10 5 10-5-10-5z"/><path d="M2 13l10 5 10-5"/><path d="M2 18l10 5 10-5"/>',
     perfil: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
     voltar: '<path d="M15 5l-7 7 7 7"/>',
+    cadeado: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     seta: '<path d="M9 5l7 7-7 7"/>',
     arquivo: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/>',
     busca: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
@@ -1226,7 +1227,10 @@
     const naoEnv = t.igrejas - t.recebidos, pendentes = t.recebidos - t.validados;
     const porUf = Object.entries(agruparPor(linhas, 'uf')).map(([uf, ls]) => { const a = agregar(ls); return { label: uf, value: a.rol, tip: `${uf}: ${fmt.int(a.rol)} membros em ${a.n_rol} igreja(s) validada(s) · ${a.igrejas} cadastrada(s)` }; })
       .sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
+    // Sigilo (014_sigilo.sql): grupos de outros presbitérios com menos de 3 relatórios validados vêm sem números
+    const sigilo = linhas.filter((l) => l.validados > 0 && !l.n_rol && !l.n_comungantes && !l.n_receita && !l.n_alunos_ed);
     return `
+      ${sigilo.length ? `<p class="aviso-sigilo">${ic('cadeado')}Os números de ${sigilo.length} ${sigilo.length === 1 ? 'grupo' : 'grupos'} (${sigilo.map((l) => esc(`${l.presbiterio_sigla}/${l.uf}`)).join(', ')}) estão ocultos: têm menos de 3 relatórios validados e, por sigilo, só quem tem jurisdição sobre o presbitério vê totais tão pequenos.</p>` : ''}
       <div class="kpis k4">
         ${kpi('Rol de membros', fmt.int(t.rol), '', cob(t.n_rol, t.igrejas))}
         ${kpi('Comungantes', fmt.int(t.comungantes), '', cob(t.n_comungantes, t.igrejas))}
@@ -1419,7 +1423,7 @@
         });
         document.getElementById('dic-xlsx').addEventListener('click', async () => {
           try {
-            await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+            await Envio.carregarScript('SHEETJS');
             const X = window.XLSX;
             const ws = X.utils.aoa_to_sheet([['Identificador', 'Campo', 'Grupo', 'Aba', 'Células', 'Tipo', 'Unidade', 'Período', 'Validação', 'Fórmula', 'Consolidação', 'Painel', 'Observação', 'Situação'],
               ...campos.map((c) => [c.id, c.rotulo, c.grupo, c.aba, c.celulas.join(', '), c.tipo, c.unidade, c.periodo, c.validacao, c.formula || '', c.consolida, c.painel, c.obs || '', c.pendente ? 'pendente' : 'lido'])]);
@@ -1662,7 +1666,7 @@
         document.getElementById('aud-q').addEventListener('input', desenhar);
         desenhar();
         document.getElementById('aud-xlsx').addEventListener('click', async () => {
-          await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+          await Envio.carregarScript('SHEETJS');
           const X = window.XLSX;
           const ws = X.utils.aoa_to_sheet([['Data e hora', 'Tipo', 'Alvo', 'Detalhe', 'Feito por'],
             ...linhas.map((a) => [new Date(a.criado_em).toLocaleString('pt-BR'), ROT_AUD[a.acao] || a.acao, a.alvo || '', a.detalhe || '', a.pessoa])]);
@@ -1718,7 +1722,7 @@
             const nome = `backup-${S.presbiterio?.sigla || 'presbiterio'}-${hojeLocal()}`;
             let resumo = `${dados.relatorios.length} relatórios (todas as versões), ${dados.igrejas.length} igrejas, ${dados.auditoria.length} registros de ações`;
             if (b.dataset.backup === 'zip') {
-              await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+              await Envio.carregarScript('JSZIP');
               const zip = new window.JSZip();
               zip.file(`${nome}.json`, json);
               let ok = 0, falhas = 0;
@@ -1963,7 +1967,7 @@
     if (!ui.carregado) {
       renderSimples('<div class="carregando"><span class="spin"></span>Carregando relatórios…</div>');
       try { await Data.carregar(); ui.carregado = true; } catch (e) {
-        return renderSimples(`<div class="login"><h1>Não foi possível carregar</h1><p class="erro">${esc(e.message)}</p><button class="btn" onclick="location.reload()">Tentar de novo</button></div>`);
+        return renderSimples(`<div class="login"><h1>Não foi possível carregar</h1><p class="erro">${esc(e.message)}</p><button class="btn" data-recarregar>Tentar de novo</button></div>`);
       }
     }
     const [p0 = '', p1, p2] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
@@ -2014,6 +2018,7 @@
 
   window.addEventListener('hashchange', rota);
   Charts.ligarTooltip();
+  document.addEventListener('click', (e) => { if (e.target.closest('[data-recarregar]')) location.reload(); });
   // Baixar arquivo original (link assinado, válido por 10 minutos)
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-baixar]');

@@ -1,16 +1,27 @@
 // Análise do arquivo antes do envio (no navegador): formato, tipo de PDF,
 // modelo oficial, exercício, igreja e impressão digital (SHA-256) contra duplicidade.
 window.Envio = (() => {
-  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-  const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const SHEETJS = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  // Bibliotecas externas, carregadas sob demanda. Cada uma tem a impressão digital (SRI) do arquivo
+  // esperado: se o servidor de origem entregar um arquivo alterado, o navegador se recusa a executá-lo.
+  // Ao trocar a versão de uma biblioteca, recalcule o hash (sha384 do arquivo, em base64).
+  const LIBS = {
+    PDFJS: ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e'],
+    SHEETJS: ['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT'],
+    JSPDF: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk'],
+    AUTOTABLE: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js', 'sha384-fCAW/rDWORTbQXSiB7mOg0QtQ5c+r0f544y6XoKjuVva0nMBlCpNUjiFeG5iMdS3'],
+    JSZIP: ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG'],
+  };
+  // O worker do pdf.js não aceita SRI: fica hospedado no próprio site (cópia idêntica ao pacote oficial 3.11.174)
+  const PDFJS_WORKER = 'vendor/pdf.worker.min.js';
   const LIMITE = 10 * 1024 * 1024;
   const IGNORAR = new Set(['IGREJA', 'PRESBITERIANA', 'DE', 'DO', 'DA', 'DOS', 'DAS', 'EM', 'NO', 'NA', 'IP', 'IPB']);
 
   const scripts = {};
-  const carregarScript = (src) => scripts[src] || (scripts[src] = new Promise((ok, erro) => {
+  const carregarScript = (nome) => scripts[nome] || (scripts[nome] = new Promise((ok, erro) => {
+    const [src, sri] = LIBS[nome];
     const s = document.createElement('script');
-    s.src = src; s.onload = ok; s.onerror = () => { delete scripts[src]; erro(new Error('Falha ao carregar ' + src)); };
+    s.src = src; s.integrity = sri; s.crossOrigin = 'anonymous';
+    s.onload = ok; s.onerror = () => { delete scripts[nome]; erro(new Error('Falha ao carregar a biblioteca ' + nome + ' (sem internet ou arquivo alterado no servidor)')); };
     document.head.appendChild(s);
   }));
 
@@ -32,9 +43,10 @@ window.Envio = (() => {
   }
 
   async function abrirPdf(buf) {
-    await carregarScript(PDFJS);
+    await carregarScript('PDFJS');
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-    return window.pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+    // isEvalSupported: false fecha a falha CVE-2024-4367 (PDF malicioso executando código ao desenhar fontes)
+    return window.pdfjsLib.getDocument({ data: buf.slice(0), isEvalSupported: false }).promise;
   }
 
   async function lerPdf(doc) {
@@ -58,8 +70,9 @@ window.Envio = (() => {
   }
 
   async function abrirXlsx(buf) {
-    await carregarScript(SHEETJS);
-    return window.XLSX.read(buf, { type: 'array', cellFormula: true });
+    await carregarScript('SHEETJS');
+    // Sempre como Uint8Array: um ArrayBuffer "solto" pode ser confundido com texto (CSV) pelo SheetJS
+    return window.XLSX.read(new Uint8Array(buf), { type: 'array', cellFormula: true });
   }
 
   function lerXlsx(wb) {
