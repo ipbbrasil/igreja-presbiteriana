@@ -345,5 +345,54 @@ window.Exportar = (() => {
     P.salvar(`${RODAPE} Fonte: ${r.arquivo || 'relatório'}.`, arquivo);
   }
 
-  return { excel, pdf, pdfIgreja };
+  // ---------- Relatórios sinodal e nacional (somente totais agregados) ----------
+  // ctx: { abrangencia, ano, total, porPresb[{ sinodo, sigla, nome, ...total }], porUf[{ uf, ...total }], parcial }
+  const COLS_AGR = [['igrejas', 'Igrejas cadastradas'], ['recebidos', 'Relatórios recebidos'], ['validados', 'Relatórios validados'],
+    ['rol', 'Rol de membros', 'n_rol'], ['comungantes', 'Comungantes', 'n_comungantes'], ['nao_comungantes', 'Não comungantes', 'n_nao_comungantes'],
+    ['alunos_ed', 'Alunos da Escola Dominical', 'n_alunos_ed'], ['admissoes', 'Admissões de comungantes', 'n_movimento'], ['demissoes', 'Demissões de comungantes', 'n_movimento'],
+    ['receita', 'Receita anual realizada', 'n_receita', true]];
+  const valAgr = (t, [c, , n]) => (n && !t[n] ? null : t[c] ?? null);
+  const nomeAgr = (ctx, ext) => `estatistica-${ctx.sigla || 'nacional'}-${ctx.ano}.${ext}`;
+  const avisoAgr = (ctx) => `Somente relatórios validados: ${ctx.total.validados} de ${ctx.total.igrejas} igrejas cadastradas. ${ctx.parcial ? 'Dados parciais — não representam o total da IPB.' : ''}`;
+
+  async function agregadoExcel(ctx) {
+    await Envio.carregarScript(SHEETJS);
+    const X = window.XLSX, wb = X.utils.book_new(), t = ctx.total;
+    const resumo = [['Relatório estatístico — ' + ctx.abrangencia], ['Exercício', ctx.ano], ['Gerado em', agora()], [avisoAgr(ctx)], [],
+      ['Indicador', 'Total', 'Igrejas que informaram'],
+      ...COLS_AGR.map((col) => [col[1], valAgr(t, col), col[2] ? t[col[2]] : null])];
+    const wsR = X.utils.aoa_to_sheet(resumo); wsR['!cols'] = [{ wch: 34 }, { wch: 18 }, { wch: 22 }];
+    X.utils.book_append_sheet(wb, wsR, 'Resumo');
+    X.utils.book_append_sheet(wb, aba(X, ['Presbitério', 'Sigla', 'Sínodo', ...COLS_AGR.map((c) => c[1])],
+      ctx.porPresb.map((p) => [p.nome, p.sigla, p.sinodo, ...COLS_AGR.map((col) => valAgr(p, col))]), { moeda: [3 + COLS_AGR.length - 1] }), 'Por presbitério');
+    X.utils.book_append_sheet(wb, aba(X, ['UF', ...COLS_AGR.map((c) => c[1])],
+      ctx.porUf.map((u) => [u.uf, ...COLS_AGR.map((col) => valAgr(u, col))]), { moeda: [COLS_AGR.length] }), 'Por UF');
+    X.writeFile(wb, nomeAgr(ctx, 'xlsx'));
+  }
+
+  async function agregadoPdf(ctx) {
+    const t = ctx.total;
+    const P = await novoPdf('Relatório estatístico', `${ctx.abrangencia} · Exercício ${ctx.ano}`, `Somente totais agregados de relatórios validados · gerado em ${agora()}`);
+    P.aviso(avisoAgr(ctx));
+    const f = (col, v) => (v == null ? '—' : col[3] ? brl(v) : num(v));
+    P.tabela('Indicadores consolidados', {
+      head: [['Indicador', 'Total', 'Igrejas que informaram']],
+      body: COLS_AGR.map((col) => [col[1], f(col, valAgr(t, col)), col[2] ? `${t[col[2]]} de ${t.igrejas}` : '']),
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'center' } },
+    });
+    P.tabela('Por presbitério', {
+      head: [['Presbitério', 'Sínodo', 'Igrejas', 'Validados', 'Rol', 'Comung.', 'Alunos ED', 'Receita']],
+      body: ctx.porPresb.map((p) => [p.nome, p.sinodo, p.igrejas, p.validados, f(COLS_AGR[3], valAgr(p, COLS_AGR[3])), f(COLS_AGR[4], valAgr(p, COLS_AGR[4])),
+        f(COLS_AGR[6], valAgr(p, COLS_AGR[6])), f(COLS_AGR[9], valAgr(p, COLS_AGR[9]))]),
+      columnStyles: Object.fromEntries([2, 3, 4, 5, 6, 7].map((i) => [i, { halign: 'right' }])),
+    });
+    P.tabela('Por UF', {
+      head: [['UF', 'Igrejas', 'Validados', 'Rol', 'Comungantes', 'Receita']],
+      body: ctx.porUf.map((u) => [u.uf, u.igrejas, u.validados, f(COLS_AGR[3], valAgr(u, COLS_AGR[3])), f(COLS_AGR[4], valAgr(u, COLS_AGR[4])), f(COLS_AGR[9], valAgr(u, COLS_AGR[9]))]),
+      columnStyles: Object.fromEntries([1, 2, 3, 4, 5].map((i) => [i, { halign: 'right' }])),
+    });
+    P.salvar(RODAPE, nomeAgr(ctx, 'pdf'));
+  }
+
+  return { excel, pdf, pdfIgreja, agregadoExcel, agregadoPdf };
 })();

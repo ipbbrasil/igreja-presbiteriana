@@ -1221,6 +1221,25 @@
       ${card('Distribuição geográfica (por UF)', Charts.barras(porUf, { fmt: fmt.int }), { sub: 'Rol de membros dos relatórios validados, pela UF da igreja' })}`;
   }
 
+  // Exportação dos totais agregados (sínodo ou nacional)
+  function ctxAgregado(linhas, abrangencia, sigla, parcial) {
+    const porPresb = Object.values(agruparPor(linhas, 'presbiterio_sigla')).map((ls) => ({ ...agregar(ls), sigla: ls[0].presbiterio_sigla, nome: ls[0].presbiterio_nome, sinodo: ls[0].sinodo_sigla }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const porUf = Object.entries(agruparPor(linhas, 'uf')).map(([uf, ls]) => ({ ...agregar(ls), uf })).sort((a, b) => a.uf.localeCompare(b.uf));
+    return { abrangencia, sigla, ano: S.ano, total: agregar(linhas), porPresb, porUf, parcial };
+  }
+  const cardExportarAgregado = () => card('Exportar', `<div class="btns">
+      <button class="btn" data-exp-agr="agregadoExcel">${ic('baixar')}Planilha Excel</button>
+      <button class="btn" data-exp-agr="agregadoPdf">${ic('arquivo')}Resumo em PDF</button></div>`,
+    { sub: 'Somente totais agregados de relatórios validados, por presbitério e por UF' });
+  function ligarExportarAgregado(ctx) {
+    $app.querySelectorAll('[data-exp-agr]').forEach((b) => b.addEventListener('click', async () => {
+      const html = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
+      try { await Exportar[b.dataset.expAgr](ctx); } catch (e) { toast('Não foi possível exportar: ' + e.message); }
+      b.disabled = false; b.innerHTML = html;
+    }));
+  }
+
   function telaNacional() {
     return {
       title: 'Igreja Presbiteriana do Brasil', sub: `Visão nacional · ${S.ano}`,
@@ -1252,7 +1271,9 @@
                 <div class="item-n"><strong>${fmt.int(a.rol)}</strong><span>membros</span></div>${ic('seta', 'chev')}</a>`;
             }).join('')}</div>`, { sub: 'Navegação: Nacional → Sínodo → Presbitério → Igreja' })}
             ${card('Comparação entre presbitérios', Charts.barras(porPresb.sort((a, b) => (b.value ?? -1) - (a.value ?? -1)), { fmt: fmt.int }), { sub: 'Rol de membros (relatórios validados)' })}
+            ${cardExportarAgregado()}
             <p class="nota">Somente totais agregados aparecem aqui. O detalhe de cada igreja fica restrito a quem tem jurisdição sobre ela.</p>`;
+          ligarExportarAgregado(ctxAgregado(linhas, 'Visão nacional (unidades cadastradas na plataforma)', 'nacional', true));
         } catch (e) { el.innerHTML = card('', `<p class="erro">${esc(e.message)}</p>`); }
       },
     };
@@ -1291,7 +1312,9 @@
                 <div class="item-n"><strong>${fmt.int(a.rol)}</strong><span>membros</span></div>`;
               return meu ? `<a class="item" href="#/">${dentro}${ic('seta', 'chev')}</a>` : `<div class="item">${dentro}</div>`;
             }).join('')}</div>`, { sub: 'Navegação: Sínodo → Presbitério → Igreja' })}
-            ${comPresb.length > 1 ? card('Comparação entre presbitérios', Charts.barras(comPresb.map(({ p, ls, a }) => ({ label: p, value: a.rol, tip: `${ls[0].presbiterio_nome}: ${fmt.int(a.rol)} membros` })), { fmt: fmt.int })) : ''}`;
+            ${comPresb.length > 1 ? card('Comparação entre presbitérios', Charts.barras(comPresb.map(({ p, ls, a }) => ({ label: p, value: a.rol, tip: `${ls[0].presbiterio_nome}: ${fmt.int(a.rol)} membros` })), { fmt: fmt.int })) : ''}
+            ${cardExportarAgregado()}`;
+          ligarExportarAgregado(ctxAgregado(linhas, nome, sg, comPresb.length < presbs.length || t.validados < t.igrejas));
         } catch (e) { el.innerHTML = card('', `<p class="erro">${esc(e.message)}</p>`); }
       },
     };

@@ -198,6 +198,7 @@ window.Ajuda = (() => {
         <li><strong>Planilha Excel</strong> com 7 abas: Resumo, Membresia, Estrutura, Vida ministerial, Finanças realizado, Finanças previsto e Situação (todas as igrejas, inclusive as que não enviaram). Cada aba de dados termina com <em>Total</em> e <em>Igrejas que informaram</em> (fórmulas). Não informado = célula vazia.</li>
         <li><strong>Resumo em PDF</strong> (A4): indicadores consolidados, tabela por igreja com total e a lista de relatórios pendentes ou fora do resultado oficial. Ideal para imprimir ou enviar por WhatsApp.</li>
         <li><strong>Relatório da igreja em PDF:</strong> na página de cada igreja (veja “Igrejas e a página de cada igreja”).</li>
+        <li><strong>Relatórios sinodal e nacional:</strong> no fim das telas do sínodo e da visão nacional, quadro <strong>Exportar</strong> com planilha Excel (Resumo, Por presbitério, Por UF) e resumo em PDF. Trazem somente totais agregados de relatórios validados, com quantas igrejas informaram cada número e o aviso de dados parciais.</li>
       </ul>
       <p>Os arquivos são gerados no próprio aparelho e baixados direto.</p>`,
     },
@@ -252,6 +253,7 @@ window.Ajuda = (() => {
       <ul>
         <li><strong>Visão nacional:</strong> sínodos, presbitérios e igrejas cadastrados na plataforma; rol, comungantes, não comungantes, Escola Dominical, admissões, demissões e receita; cobertura estatística (validados, pendentes, não enviados); distribuição por UF; comparação entre presbitérios.</li>
         <li><strong>Visão do sínodo:</strong> os mesmos indicadores para os presbitérios do sínodo, com a lista de presbitérios e a comparação entre eles.</li>
+        <li><strong>Exportar:</strong> as duas telas geram planilha Excel e resumo em PDF dos totais (por presbitério e por UF).</li>
         <li>Somente relatórios <strong>validados</strong> entram nos totais, e cada número mostra quantas igrejas contribuíram. Cada exercício é somado ao sínodo a que o presbitério pertencia naquele ano.</li>
         <li>Enquanto nem todas as unidades estiverem na plataforma, os totais aparecem como <strong>parciais</strong> e não são apresentados como o total da IPB. O total oficial da denominação só será exibido quando houver fonte institucional.</li>
         <li>Estas telas mostram apenas <strong>totais agregados</strong>; elas não abrem os dados de uma igreja de outro presbitério.</li>
