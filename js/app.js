@@ -77,9 +77,24 @@
     ['ed', 'ed_ant', 'Alunos da Escola Dominical', fmt.int], ['rec', null, 'Receita anual realizada', fmt.brlCurto]];
 
   // Quadro de evolução: um minigráfico por indicador (escalas diferentes não dividem eixo)
-  function cardEvolucao(linhas, { titulo = 'Evolução histórica', sub = '', igreja = false } = {}) {
+  // Série a partir de totais já agregados (visões do sínodo e nacional): cada linha traz soma e "n_" (igrejas que informaram)
+  function serieAgregada(linhas, campo, ant) {
+    const anos = [...new Set(linhas.map((l) => l.ano))].sort((a, b) => a - b);
+    const soma = (ls, c) => {
+      const ok = ls.filter((l) => l['n_' + c] > 0);
+      return ok.length ? { valor: ok.reduce((s, l) => s + Number(l[c]), 0), n: ok.reduce((s, l) => s + l['n_' + c], 0) } : { valor: null, n: 0 };
+    };
+    const pontos = anos.map((a) => ({ ano: a, ...soma(linhas.filter((l) => l.ano === a), campo) }));
+    if (ant && anos.length) {
+      const s = soma(linhas.filter((l) => l.ano === anos[0]), ant);
+      if (s.n) pontos.unshift({ ano: anos[0] - 1, ...s, anterior: true });
+    }
+    return pontos;
+  }
+
+  function cardEvolucao(linhas, { titulo = 'Evolução histórica', sub = '', igreja = false, agregado = false } = {}) {
     const blocos = INDICADORES_EVOL.map(([c, a, nome, f], i) => {
-      const p = serieAnual(linhas, c, a);
+      const p = agregado ? serieAgregada(linhas, c, a) : serieAnual(linhas, c, a);
       const reais = p.filter((x) => !x.anterior && Regras.temValor(x.valor));
       const ult = reais[reais.length - 1];
       const ns = new Set(p.filter((x) => Regras.temValor(x.valor)).map((x) => x.n));
@@ -1247,7 +1262,7 @@
       after: async () => {
         const el = document.getElementById('nac');
         try {
-          const { linhas, estrutura } = await Data.painelNacional();
+          const [{ linhas, estrutura }, evo] = await Promise.all([Data.painelNacional(), Data.evolucaoNacional().catch((e) => e)]);
           const t = agregar(linhas);
           const sinodos = [...new Set(estrutura.map((e) => e.sinodo_sigla))];
           const presbs = [...new Set(estrutura.map((e) => e.presbiterio_sigla).filter(Boolean))];
@@ -1263,6 +1278,7 @@
               ${kpi('Relatórios validados', fmt.int(t.validados), '', `<span class="kpi-f">${t.recebidos} recebidos</span>`)}
             </div>
             ${blocoAgregado(linhas, t)}
+            ${!Array.isArray(evo) ? card('Evolução histórica', `<p class="nota">${esc(evo?.message || 'Indisponível.')}</p>`) : cardEvolucao(evo, { agregado: true, sub: 'Por exercício · somente relatórios validados · totais por presbitério' })}
             ${card('Sínodos', `<div class="lista">${sinodos.map((sg) => {
               const ls = porSinodo[sg] || [], a = agregar(ls), e = estrutura.find((x) => x.sinodo_sigla === sg);
               const np = new Set(estrutura.filter((x) => x.sinodo_sigla === sg && x.presbiterio_sigla).map((x) => x.presbiterio_sigla)).size;
@@ -1287,7 +1303,8 @@
       after: async () => {
         const el = document.getElementById('sin');
         try {
-          const { linhas: todas, estrutura } = await Data.painelNacional();
+          const [{ linhas: todas, estrutura }, evoTodas] = await Promise.all([Data.painelNacional(), Data.evolucaoNacional().catch((e) => e)]);
+          const evo = Array.isArray(evoTodas) ? evoTodas.filter((l) => l.sinodo_sigla === sg) : evoTodas;
           const linhas = todas.filter((l) => l.sinodo_sigla === sg);
           const presbs = estrutura.filter((e) => e.sinodo_sigla === sg && e.presbiterio_sigla);
           const nome = estrutura.find((e) => e.sinodo_sigla === sg)?.sinodo_nome || sg;
@@ -1305,6 +1322,7 @@
               ${kpi('Relatórios validados', fmt.int(t.validados))}
             </div>
             ${blocoAgregado(linhas, t)}
+            ${!Array.isArray(evo) ? card('Evolução histórica', `<p class="nota">${esc(evo?.message || 'Indisponível.')}</p>`) : cardEvolucao(evo, { agregado: true, sub: 'Por exercício · somente relatórios validados · totais por presbitério' })}
             ${card('Presbitérios', `<div class="lista">${presbs.map((e) => {
               const a = agregar(porPresb[e.presbiterio_sigla] || []);
               const meu = e.presbiterio_sigla === S.presbiterio?.sigla;

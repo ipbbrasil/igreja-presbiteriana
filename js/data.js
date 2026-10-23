@@ -158,6 +158,23 @@ window.Data = (() => {
     if (p.error) throw new Error(p.error.message.includes('painel_nacional') ? 'A visão nacional ainda não foi ativada no banco (rode o 009_nacional.sql).' : p.error.message);
     return { linhas: p.data, estrutura: e.error ? [] : e.data };
   }
+  // Evolução por exercício e presbitério (totais de relatórios validados)
+  async function evolucaoNacional() {
+    if (state.modo === 'local') {
+      const porAno = {};
+      for (const h of state.historico.filter((x) => x.status === 'validado')) {
+        const l = porAno[h.ano] || (porAno[h.ano] = { ano: h.ano, sinodo_sigla: state.sinodo?.sigla, presbiterio_sigla: state.presbiterio?.sigla });
+        for (const c of ['rol', 'rol_ant', 'com', 'com_ant', 'ed', 'ed_ant', 'rec']) {
+          if (h[c] != null) { l[c] = (l[c] || 0) + h[c]; l['n_' + c] = (l['n_' + c] || 0) + 1; }
+        }
+      }
+      return Object.values(porAno);
+    }
+    const { data, error } = await sb.rpc('evolucao_nacional');
+    if (error) throw new Error(error.message.includes('evolucao_nacional') ? 'A evolução histórica nacional ainda não foi ativada no banco (rode o 013_evolucao_nacional.sql).' : error.message);
+    return data;
+  }
+
   // Modo local: mesma estrutura, calculada a partir do arquivo do presbitério
   function nacionalLocal() {
     const s = state.sinodo || {}, p = state.presbiterio || {};
@@ -440,7 +457,7 @@ window.Data = (() => {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     trocarAno, exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
-    painelNacional, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
+    painelNacional, evolucaoNacional, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, listarAcessosSuperiores, removerAcesso, verConvite, usarConvite,
   };
 })();
