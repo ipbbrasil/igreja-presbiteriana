@@ -1631,10 +1631,13 @@
       ${card('Convidar usuário', `<form id="f-conv" class="campos conv">
           <label class="lbl">Nome<input type="text" name="nome" autocomplete="off" placeholder="Ex.: Pb. João da Silva"></label>
           <label class="lbl">E-mail<input type="email" name="email" required autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email"></label>
-          <label class="lbl">Acesso<select name="papel" id="conv-papel">${Object.entries(PAPEL_CONVITE).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+          <label class="lbl">Acesso<select name="papel" id="conv-papel">
+            <option value="representante">Representante de igreja</option>
+            <option value="admin_presbiterial">Administrador do ${esc(S.presbiterio?.nome || 'presbitério')}</option></select></label>
           <label class="lbl" id="conv-ig">Igreja<select name="igreja"><option value="">Selecione a igreja…</option>${igrejas.map((i) => `<option value="${esc(i.codigo)}">${esc(i.nome)}</option>`).join('')}</select></label>
           <button class="btn primary" type="submit">Criar convite</button>
-        </form><div id="conv-ok"></div>`, { sub: 'Representante vê e envia só a própria igreja; administrador vê o presbitério inteiro e valida relatórios' })}
+        </form><p class="nota">Os convites valem sempre para o <strong>${esc(S.presbiterio?.nome || 'seu presbitério')}${S.presbiterio?.sigla ? ` (${esc(S.presbiterio.sigla)})` : ''}</strong>, que é o presbitério do seu acesso. Administradores de outros presbitérios são convidados pelo superadministrador.</p>
+        <div id="conv-ok"></div>`, { sub: 'Representante vê e envia só a própria igreja; administrador vê o presbitério inteiro e valida relatórios' })}
       <section class="card"><header class="card-h"><h2>Convites pendentes</h2></header><div id="l-conv"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>
       <section class="card"><header class="card-h"><h2>Usuários com acesso</h2></header><div id="l-usu"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>`;
 
@@ -1677,7 +1680,7 @@
           try {
             const codigo = await Data.criarConvite(dados);
             const cv = { ...dados, codigo, igreja: igrejas.find((i) => i.codigo === dados.igreja)?.nome };
-            document.getElementById('conv-ok').innerHTML = `<div class="banner info conv-ok" role="status"><b>✓</b><div><strong>Convite criado para ${esc(dados.email)}.</strong>
+            document.getElementById('conv-ok').innerHTML = `<div class="banner info conv-ok" role="status"><b>✓</b><div><strong>Convite criado para ${esc(dados.email)}</strong> — ${dados.papel === 'representante' ? `representante da ${esc(cv.igreja || '')}` : `administrador do ${esc(S.presbiterio?.nome || 'presbitério')}`}.
               Envie o link abaixo para a pessoa:<code class="link">${esc(linkConvite(codigo))}</code><div class="btns">${botoesConvite(cv)}</div></div></div>`;
             $f.reset(); ajustar();
             carregarListas();

@@ -202,7 +202,7 @@ window.Ajuda = (() => {
       id: 'usuarios', titulo: 'Usuários e convites', para: ['admin'], html: `
       <p>Em <strong>Perfil → Usuários e convites</strong>.</p>
       <ol class="aj-passos">
-        <li>Preencha nome, e-mail e o acesso: <strong>Representante de igreja</strong> (escolha a igreja) ou <strong>Administrador do presbitério</strong>.</li>
+        <li>Preencha nome, e-mail e o acesso: <strong>Representante de igreja</strong> (escolha a igreja) ou <strong>Administrador do presbitério</strong>. O presbitério não é escolhido: é sempre o do administrador que está convidando (a tela mostra o nome dele), porque cada administrador só concede acesso dentro da própria jurisdição.</li>
         <li>Toque em <strong>Criar convite</strong> e envie o link por <strong>WhatsApp</strong> ou <strong>Copiar link</strong>.</li>
         <li>A pessoa abre o link, cria a senha (mínimo 8 caracteres), confirma que leu o aviso de privacidade e já entra com o acesso certo. Se já tiver conta com aquele e-mail, usa “Já tenho conta”.</li>
       </ol>
