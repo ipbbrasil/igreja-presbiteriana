@@ -39,7 +39,8 @@ window.Ajuda = (() => {
       id: 'entrar', titulo: 'Entrar, sair e senha', para: ['todos'], html: `
       <ul>
         <li><strong>Entrar:</strong> e-mail e senha cadastrados. Marque <em>Mostrar senha</em> para conferir o que digitou.</li>
-        <li><strong>Primeiro acesso:</strong> é feito pelo <strong>link de convite</strong> enviado pelo administrador (veja “Usuários e convites”).</li>
+        <li><strong>Primeiro acesso:</strong> é feito pelo <strong>link de convite</strong> enviado pelo administrador (veja “Usuários e convites”). Ao criar a conta, a pessoa confirma que leu o <strong>aviso de privacidade</strong>.</li>
+        <li><strong>Privacidade (LGPD):</strong> o aviso explica quais dados são tratados, quem tem acesso e os seus direitos. Fica na tela de login e em <em>Perfil → Aviso de privacidade</em>.</li>
         <li><strong>Sair:</strong> Perfil → <em>Sair</em>. Use sempre que trocar de usuário no mesmo aparelho.</li>
         <li><strong>Esqueci a senha:</strong> peça ao administrador do presbitério; o responsável técnico redefine a senha e você entra com a nova.</li>
         <li><strong>Sessão aberta:</strong> depois de entrar, o aparelho continua conectado até você tocar em <em>Sair</em>. Com o app instalado, normalmente basta entrar uma vez.</li>

@@ -248,6 +248,7 @@
           <button class="btn primary" type="submit">Entrar</button>
         </form>`}
       <a class="login-ajuda" href="#/ajuda">${ic('ajuda')}Como funciona o sistema?</a>
+      <a class="login-priv" href="#/privacidade">Aviso de privacidade</a>
     </div>`);
     if (local) {
       $app.querySelectorAll('[data-papel]').forEach((b) => b.addEventListener('click', () => {
@@ -1615,11 +1616,13 @@
           <label>${novaConta ? 'Crie uma senha (mínimo 8 caracteres)' : 'Sua senha'}<input type="password" name="senha" id="senha" minlength="${novaConta ? 8 : 1}" autocomplete="${novaConta ? 'new-password' : 'current-password'}" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>
           ${novaConta ? '<label>Repita a senha<input type="password" name="senha2" id="senha2" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" required></label>' : ''}
           <label class="conf"><input type="checkbox" id="ver-senha"> Mostrar senha</label>
+          <label class="conf"><input type="checkbox" id="aceite" required> <span>Li o <a href="#" id="ver-priv">aviso de privacidade</a> e estou ciente de como meus dados são tratados.</span></label>
           <button class="btn primary" type="submit">${novaConta ? 'Criar conta e entrar' : 'Entrar e aceitar convite'}</button>
         </form>
         <button class="btn" id="alternar">${novaConta ? 'Já tenho conta com este e-mail' : 'Ainda não tenho conta'}</button>
       </div>`);
       document.getElementById('alternar').addEventListener('click', () => { novaConta = !novaConta; desenhar(); });
+      document.getElementById('ver-priv').addEventListener('click', (e) => { e.preventDefault(); abrirPainel('Aviso de privacidade', Privacidade.html()); });
       document.getElementById('ver-senha').addEventListener('change', (e) => { ['senha', 'senha2'].forEach((id) => { const el = document.getElementById(id); if (el) el.type = e.target.checked ? 'text' : 'password'; }); });
       document.getElementById('f-convite').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1659,6 +1662,8 @@
             <div class="item-m"><strong>Ajuda</strong><span class="muted">Tudo o que o aplicativo faz, passo a passo e configurações</span></div>${ic('seta', 'chev')}</a>
           <a class="item" href="#/dicionario">
             <div class="item-m"><strong>Dicionário de dados</strong><span class="muted">Cada campo do relatório oficial: célula, tipo, regras e onde aparece</span></div>${ic('seta', 'chev')}</a>
+          <a class="item" href="#/privacidade">
+            <div class="item-m"><strong>Aviso de privacidade</strong><span class="muted">Quais dados são tratados, quem acessa e os seus direitos (LGPD)</span></div>${ic('seta', 'chev')}</a>
         </div>
         ${local ? card('Simular outro perfil', `<div class="perfis">
             ${['admin_presbiterial', 'admin_sinodal', 'representante'].map((p) => `<button class="btn${S.perfil.papel === p ? ' primary' : ''}" data-papel="${p}">${PAPEIS[p]}</button>`).join('')}
@@ -1690,12 +1695,13 @@
       renderSimples('<div class="carregando"><span class="spin"></span>Carregando…</div>');
       try { await Data.sessaoAtual(); } catch (e) { return telaLogin(e.message); }
     }
-    if (!S.perfil && location.hash.startsWith('#/ajuda')) {
-      // Ajuda aberta da tela de login (sem usuário)
+    if (!S.perfil && /^#\/(ajuda|privacidade)/.test(location.hash)) {
+      // Ajuda e aviso de privacidade abertos da tela de login (sem usuário)
+      const priv = location.hash.startsWith('#/privacidade');
       $app.innerHTML = `<div class="aj-solo"><header class="aj-solo-h"><a href="#/" class="btn">${ic('voltar')}Voltar ao login</a>
-        <img src="icons/logo_ipb.png" alt="Igreja Presbiteriana do Brasil"></header><h1>Ajuda</h1>${Ajuda.html(null)}</div>`;
+        <img src="icons/logo_ipb.png" alt="Igreja Presbiteriana do Brasil"></header><h1>${priv ? 'Aviso de privacidade' : 'Ajuda'}</h1>${priv ? Privacidade.html() : Ajuda.html(null)}</div>`;
       window.scrollTo(0, 0);
-      return Ajuda.ligar($app);
+      return priv ? undefined : Ajuda.ligar($app);
     }
     if (!S.perfil) return telaLogin();
     if (!ui.carregado) {
@@ -1706,7 +1712,7 @@
     }
     const [p0 = '', p1, p2] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
     const rep = S.perfil.papel === 'representante';
-    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar' || p0 === 'ajuda' || p0 === 'dicionario')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
+    if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar' || p0 === 'ajuda' || p0 === 'dicionario' || p0 === 'privacidade')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     if (p0 === 'igreja' && rep && p1 !== S.perfil.igreja_codigo) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     switch (p0) {
       case '': return render(telaPresbiterio(), 'inicio');
@@ -1730,6 +1736,7 @@
       case 'ajuda':
         return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');
       case 'dicionario': return render(telaDicionario(), 'perfil');
+      case 'privacidade': return render({ title: 'Aviso de privacidade', sub: `LGPD · versão de ${Privacidade.VERSAO}`, back: '#/perfil', body: Privacidade.html() }, 'perfil');
       case 'auditoria':
       case 'backup':
         if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/perfil'); return; }

@@ -391,6 +391,10 @@ blockquote.trecho { margin: 6px 0 0; padding: 8px 10px; background: var(--paper-
 .ab-help:active { background: rgba(255, 255, 255, .12); }
 .login-ajuda { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; color: var(--navy); }
 .login-ajuda .ic { width: 18px; height: 18px; color: var(--gold); }
+.login-priv { font-size: 12.5px; color: var(--muted); text-decoration: underline; text-decoration-color: var(--line); }
+.conf a { color: var(--navy); text-decoration: underline; }
+.pv-sec { padding: 0; }
+.pv-sec .card-h { padding: 14px 18px 0; }
 .aj-busca { position: sticky; top: calc(64px + env(safe-area-inset-top)); z-index: 9; }
 @media (min-width: 900px) { .aj-busca { top: 0; } }
 .aj-lista { display: flex; flex-direction: column; gap: 12px; }
