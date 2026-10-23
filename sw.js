@@ -1,7 +1,7 @@
 ﻿// Service worker: guarda só os arquivos do app (nunca os dados) para abrir rápido.
-const VERSAO = 'painel-v24';
+const VERSAO = 'painel-v25';
 const ARQUIVOS = [
-  './', 'index.html', 'css/app.css', 'js/config.js', 'js/regras.js', 'js/data.js', 'js/charts.js', 'js/dicionario.js', 'js/leitura.js', 'js/envio.js', 'js/exportar.js', 'js/ajuda.js', 'js/privacidade.js', 'js/app.js',
+  './', 'index.html', 'css/app.css', 'js/config.js', 'js/regras.js', 'js/data.js', 'js/charts.js', 'js/dicionario.js', 'js/leitura.js', 'js/envio.js', 'js/resumo.js', 'js/exportar.js', 'js/ajuda.js', 'js/privacidade.js', 'js/app.js',
   'manifest.webmanifest', 'icons/logo_ipb.png', 'icons/favicon.png', 'icons/icon-192.png',
 ];
 

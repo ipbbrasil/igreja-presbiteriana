@@ -64,6 +64,7 @@ window.Ajuda = (() => {
       <p>Tela inicial do administrador com os números consolidados do exercício.</p>
       <ul>
         <li><strong>Exercício:</strong> o seletor no topo troca o ano mostrado em todo o aplicativo (painel, igrejas, conferência, sínodo e nacional). A escolha fica salva neste aparelho; o padrão é o ano mais recente com relatórios.</li>
+        <li><strong>Resumo executivo:</strong> um texto curto com cobertura, membresia, movimentação, Escola Dominical, finanças e pontos de atenção (relatórios em correção, igrejas que não enviaram, variações não explicadas). É gerado por regras fixas a partir dos números, sem estimativas nem juízo sobre as igrejas. Botão <em>Copiar texto</em> para colar em atas ou mensagens; também vai no PDF.</li>
         <li><strong>Evolução histórica:</strong> um minigráfico por indicador (rol de membros, comungantes, alunos da Escola Dominical e receita) ao longo dos exercícios. O ponto vazado com linha tracejada é o valor informado como “ano anterior” no relatório seguinte — assim, já no primeiro ano há dois pontos. Se o conjunto de igrejas muda entre os anos, um aviso alerta que parte da mudança pode ser cobertura e não crescimento real.</li>
         <li><strong>Somente validados / Todos recebidos:</strong> escolhe quais relatórios entram nos totais. O padrão é <em>somente validados</em>; “todos” mostra um aviso de que inclui dados não conferidos. Essa escolha vale também para a exportação.</li>
         <li><strong>Membros, comungantes e não comungantes:</strong> com a variação do ano (calculada só com igrejas que informaram os dois anos). <strong>Toque no número</strong> para ver quais igrejas compõem o total.</li>
@@ -196,7 +197,7 @@ window.Ajuda = (() => {
       <p>No fim do painel do presbitério, quadro <strong>Exportar</strong>. Usa os mesmos relatórios do painel (somente validados ou todos) e informa a situação do exercício (aberto/parcial ou fechado/oficial).</p>
       <ul>
         <li><strong>Planilha Excel</strong> com 7 abas: Resumo, Membresia, Estrutura, Vida ministerial, Finanças realizado, Finanças previsto e Situação (todas as igrejas, inclusive as que não enviaram). Cada aba de dados termina com <em>Total</em> e <em>Igrejas que informaram</em> (fórmulas). Não informado = célula vazia.</li>
-        <li><strong>Resumo em PDF</strong> (A4): indicadores consolidados, tabela por igreja com total e a lista de relatórios pendentes ou fora do resultado oficial. Ideal para imprimir ou enviar por WhatsApp.</li>
+        <li><strong>Resumo em PDF</strong> (A4): resumo executivo em texto, indicadores consolidados, tabela por igreja com total e a lista de relatórios pendentes ou fora do resultado oficial. Ideal para imprimir ou enviar por WhatsApp.</li>
         <li><strong>Relatório da igreja em PDF:</strong> na página de cada igreja (veja “Igrejas e a página de cada igreja”).</li>
         <li><strong>Relatórios sinodal e nacional:</strong> no fim das telas do sínodo e da visão nacional, quadro <strong>Exportar</strong> com planilha Excel (Resumo, Por presbitério, Por UF) e resumo em PDF. Trazem somente totais agregados de relatórios validados, com quantas igrejas informaram cada número e o aviso de dados parciais.</li>
       </ul>
@@ -253,6 +254,8 @@ window.Ajuda = (() => {
       <ul>
         <li><strong>Visão nacional:</strong> sínodos, presbitérios e igrejas cadastrados na plataforma; rol, comungantes, não comungantes, Escola Dominical, admissões, demissões e receita; cobertura estatística (validados, pendentes, não enviados); distribuição por UF; comparação entre presbitérios.</li>
         <li><strong>Visão do sínodo:</strong> os mesmos indicadores para os presbitérios do sínodo, com a lista de presbitérios e a comparação entre eles.</li>
+        <li><strong>Resumo executivo</strong> em texto, com botão para copiar.</li>
+        <li><strong>Mapa por UF:</strong> mapa esquemático do Brasil (cada quadrado é um estado, na posição aproximada), colorido do claro ao escuro conforme o indicador escolhido: rol de membros, igrejas cadastradas ou % de relatórios validados. A escala começa em zero, para não exagerar diferenças pequenas. Toque em um estado para ver os números.</li>
         <li><strong>Evolução histórica:</strong> as duas telas mostram a evolução por exercício do rol de membros, comungantes, alunos da Escola Dominical e receita (somente relatórios validados). O primeiro ponto vazado é o “ano anterior” informado nos relatórios; um aviso aparece quando o conjunto de igrejas muda entre os anos.</li>
         <li><strong>Exportar:</strong> as duas telas geram planilha Excel e resumo em PDF dos totais (por presbitério e por UF).</li>
         <li>Somente relatórios <strong>validados</strong> entram nos totais, e cada número mostra quantas igrejas contribuíram. Cada exercício é somado ao sínodo a que o presbitério pertencia naquele ano.</li>
@@ -372,6 +375,7 @@ window.Ajuda = (() => {
         <dt>Variação relevante</dt><dd>Mudança do ano anterior para o atual acima do limite (padrão 15% e 5 pessoas), classificada como real, informada ou a verificar.</dd>
         <dt>Exercício</dt><dd>Ano a que o relatório se refere (ex.: o relatório entregue em 2026 é do exercício 2025).</dd>
         <dt>Exercício fechado / resultado oficial</dt><dd>Ano encerrado pelo administrador: os relatórios validados formam o resultado oficial e nada mais pode ser alterado sem reabertura.</dd>
+        <dt>Resumo executivo</dt><dd>Texto gerado automaticamente por regras fixas que resume os números do painel; não substitui a análise dos concílios.</dd>
         <dt>Rastreabilidade</dt><dd>Possibilidade de ver, para cada número, o documento, a página ou célula, a extração, a validação e as correções.</dd>
         <dt>Superadministrador</dt><dd>Conta que cuida da estrutura conciliar (sínodos e presbitérios) da plataforma.</dd>
       </dl>`,

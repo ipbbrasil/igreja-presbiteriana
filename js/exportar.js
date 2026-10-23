@@ -169,6 +169,18 @@ window.Exportar = (() => {
       doc.autoTable(estilo({ startY: y0 + 2.5, margin: { left: meio + 3, right: M }, ...o2 }));
       p.y = Math.max(f1, doc.lastAutoTable.finalY) + 8;
     };
+    // Texto corrido (resumo executivo): título e parágrafos com quebra automática
+    p.paragrafos = (titulo, lista) => {
+      espaco(20);
+      titular(titulo, M); p.y += 6;
+      doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(27, 37, 43);
+      for (const t of lista) {
+        const linhas = doc.splitTextToSize(pdfTxt(t), W);
+        espaco(linhas.length * 4.2 + 2);
+        doc.text(linhas, M, p.y); p.y += linhas.length * 4.2 + 2.5;
+      }
+      p.y += 4;
+    };
     p.aviso = (texto, destaque = GOLD) => {
       const linhas = doc.setFontSize(8.5).splitTextToSize(pdfTxt(texto), W - 6);
       const h = 4 + linhas.length * 3.8;
@@ -204,6 +216,7 @@ window.Exportar = (() => {
         : fechado ? `${situacaoTxt(ctx)}: ${validados} de ${cadastradas} igrejas com relatório validado compõem os totais.`
         : `Resultado parcial: ${validados} de ${cadastradas} igrejas têm relatório validado. Os totais consideram somente estas.`);
     }
+    P.paragrafos('Resumo executivo', Resumo.presbiterio(ctx));
     const tabela = P.tabela;
 
     tabela('Indicadores consolidados', {
@@ -374,6 +387,7 @@ window.Exportar = (() => {
     const t = ctx.total;
     const P = await novoPdf('Relatório estatístico', `${ctx.abrangencia} · Exercício ${ctx.ano}`, `Somente totais agregados de relatórios validados · gerado em ${agora()}`);
     P.aviso(avisoAgr(ctx));
+    P.paragrafos('Resumo executivo', Resumo.agregado(ctx));
     const f = (col, v) => (v == null ? '—' : col[3] ? brl(v) : num(v));
     P.tabela('Indicadores consolidados', {
       head: [['Indicador', 'Total', 'Igrejas que informaram']],

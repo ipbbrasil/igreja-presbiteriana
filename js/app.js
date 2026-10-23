@@ -404,6 +404,8 @@
         : fechado ? `<div class="banner info" role="note"><b>✓</b><div><strong>Exercício ${S.ano} fechado${S.exercicio.fechado_em ? ` em ${fmt.data(S.exercicio.fechado_em.slice(0, 10))}` : ''} — resultado oficial.</strong> Compõem o resultado ${validados.length} de ${cadastradas} igrejas (relatórios validados)${cadastradas > validados.length ? `; ${cadastradas - validados.length} ficaram de fora` : ''}.</div></div>`
         : (parcial || faltam.length) ? `<div class="banner info" role="note"><b>i</b><div><strong>Resultado parcial:</strong> ${validados.length} de ${cadastradas} igrejas têm relatório validado${faltam.length ? ` (${faltam.length} ainda não ${faltam.length === 1 ? 'enviou' : 'enviaram'})` : ''}. Os números abaixo consideram somente os validados.</div></div>` : ''}
 
+      ${cardResumo(Resumo.presbiterio({ base, todos, naoEnviadas: faltam, cadastradas, ano: S.ano, escopo: ui.escopo, exercicio: S.exercicio, limiteVar: ui.limiteVar }))}
+
       ${card('Recebimento dos relatórios', `<div class="cs-bar">${segs}</div><div class="cob">${chipsStatus}</div>`, { sub: `Exercício ${S.ano} · ${fechado ? 'fechado' : 'aberto'} · ${todos.length} de ${cadastradas} igrejas enviaram` })}
 
       <div class="kpis k4">
@@ -473,7 +475,7 @@
           b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
           try {
             await Exportar[b.dataset.exportar]({ base, todos, escopo: ui.escopo, presbiterio: S.presbiterio, sinodo: S.sinodo, ano: S.ano,
-              exercicio: S.exercicio, naoEnviadas: Data.naoEnviadas(), cadastradas });
+              exercicio: S.exercicio, naoEnviadas: Data.naoEnviadas(), cadastradas, limiteVar: ui.limiteVar });
           } catch (e) { toast('Não foi possível exportar: ' + e.message); }
           b.disabled = false; b.innerHTML = html;
         }));
@@ -1233,8 +1235,36 @@
           ${naoEnv ? `<span class="cs-seg st-neutral" style="flex:${naoEnv}" data-tip="Não enviados: ${naoEnv}"></span>` : ''}</div>
         <div class="cob">${chip('validado')}<strong>${t.validados}</strong>${pendentes ? `<span class="chip warning"><b aria-hidden="true">◔</b>Pendentes de validação</span><strong>${pendentes}</strong>` : ''}${naoEnv ? `${chip('nao_enviado')}<strong>${naoEnv}</strong>` : ''}</div>`,
         { sub: `${t.recebidos} de ${t.igrejas} igrejas enviaram · somente os ${t.validados} relatórios validados entram nos totais` })}
+      ${cardMapa(linhas)}
       ${card('Distribuição geográfica (por UF)', Charts.barras(porUf, { fmt: fmt.int }), { sub: 'Rol de membros dos relatórios validados, pela UF da igreja' })}`;
   }
+
+  // Resumo executivo em texto (regras fixas), com botão para copiar
+  const cardResumo = (paragrafos) => card('Resumo executivo', `<div class="resumo">${paragrafos.map((t) => `<p>${esc(t)}</p>`).join('')}</div>
+      <div class="btns"><button class="btn" data-copiar-texto="${esc(paragrafos.join('\n\n'))}">Copiar texto</button></div>
+      <p class="nota">${esc(Resumo.NOTA)}</p>`, { sub: 'Síntese dos números do painel, em linguagem simples' });
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-copiar-texto]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copiarTexto); toast('Resumo copiado.'); } catch (err) { window.prompt('Copie o resumo:', b.dataset.copiarTexto); }
+  });
+
+  // Mapa em grade por UF, com escolha do indicador
+  function cardMapa(linhas) {
+    const ufs = Object.entries(agruparPor(linhas, 'uf')).map(([uf, ls]) => ({ uf, a: agregar(ls) }));
+    const dica = (uf, a) => `${uf}: ${a.igrejas} igreja(s) cadastrada(s) · ${a.validados} com relatório validado · rol ${fmt.int(a.n_rol ? a.rol : null)}`;
+    const mapa = (valor, f, rotulo) => Charts.mapaUF(ufs.map(({ uf, a }) => ({ uf, valor: valor(a), tip: dica(uf, a) })), { fmt: f, rotulo });
+    return card('Mapa por UF', `<label class="lim mapa-sel">Mostrar <select class="mapa-ind" aria-label="Indicador do mapa">
+          <option value="rol">Rol de membros (validados)</option><option value="igrejas">Igrejas cadastradas</option><option value="cob">% de relatórios validados</option></select></label>
+        <div data-mapa="rol">${mapa((a) => (a.n_rol ? a.rol : null), fmt.int, 'Rol de membros')}</div>
+        <div data-mapa="igrejas" hidden>${mapa((a) => a.igrejas, fmt.int, 'Igrejas cadastradas')}</div>
+        <div data-mapa="cob" hidden>${mapa((a) => (a.igrejas ? a.validados / a.igrejas : null), (v) => fmt.pct(v, 0), '% de relatórios validados')}</div>`,
+    { sub: 'Mapa esquemático: cada quadrado é um estado, na posição aproximada. Cor mais escura = valor maior. Toque em um estado para ver os números.' });
+  }
+  document.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('mapa-ind')) return;
+    e.target.closest('.card').querySelectorAll('[data-mapa]').forEach((d) => { d.hidden = d.dataset.mapa !== e.target.value; });
+  });
 
   // Exportação dos totais agregados (sínodo ou nacional)
   function ctxAgregado(linhas, abrangencia, sigla, parcial) {
@@ -1268,6 +1298,7 @@
           const presbs = [...new Set(estrutura.map((e) => e.presbiterio_sigla).filter(Boolean))];
           const porSinodo = agruparPor(linhas, 'sinodo_sigla');
           const porPresb = Object.entries(agruparPor(linhas, 'presbiterio_sigla')).map(([sg, ls]) => ({ label: sg, value: agregar(ls).rol, tip: `${ls[0].presbiterio_nome}: ${fmt.int(agregar(ls).rol)} membros` }));
+          const ctxA = ctxAgregado(linhas, 'Visão nacional (unidades cadastradas na plataforma)', 'nacional', true);
           el.innerHTML = `
             <div class="banner info" role="note"><b>i</b><div><strong>Visão nacional da plataforma — dados parciais.</strong> Estão cadastrados ${sinodos.length} sínodo(s), ${presbs.length} presbitério(s) e ${t.igrejas} igreja(s).
               Os totais somam apenas os relatórios validados dessas unidades e <strong>não representam o total da IPB</strong>. Total oficial conhecido da IPB: <em>não informado</em> (será exibido quando houver fonte institucional).</div></div>
@@ -1277,6 +1308,7 @@
               ${kpi('Igrejas cadastradas', fmt.int(t.igrejas))}
               ${kpi('Relatórios validados', fmt.int(t.validados), '', `<span class="kpi-f">${t.recebidos} recebidos</span>`)}
             </div>
+            ${cardResumo(Resumo.agregado(ctxA))}
             ${blocoAgregado(linhas, t)}
             ${!Array.isArray(evo) ? card('Evolução histórica', `<p class="nota">${esc(evo?.message || 'Indisponível.')}</p>`) : cardEvolucao(evo, { agregado: true, sub: 'Por exercício · somente relatórios validados · totais por presbitério' })}
             ${card('Sínodos', `<div class="lista">${sinodos.map((sg) => {
@@ -1289,7 +1321,7 @@
             ${card('Comparação entre presbitérios', Charts.barras(porPresb.sort((a, b) => (b.value ?? -1) - (a.value ?? -1)), { fmt: fmt.int }), { sub: 'Rol de membros (relatórios validados)' })}
             ${cardExportarAgregado()}
             <p class="nota">Somente totais agregados aparecem aqui. O detalhe de cada igreja fica restrito a quem tem jurisdição sobre ela.</p>`;
-          ligarExportarAgregado(ctxAgregado(linhas, 'Visão nacional (unidades cadastradas na plataforma)', 'nacional', true));
+          ligarExportarAgregado(ctxA);
         } catch (e) { el.innerHTML = card('', `<p class="erro">${esc(e.message)}</p>`); }
       },
     };
@@ -1312,6 +1344,7 @@
           const t = agregar(linhas);
           const porPresb = agruparPor(linhas, 'presbiterio_sigla');
           const comPresb = Object.entries(porPresb).map(([p, ls]) => ({ p, ls, a: agregar(ls) }));
+          const ctxA = ctxAgregado(linhas, nome, sg, comPresb.length < presbs.length || t.validados < t.igrejas);
           el.innerHTML = `
             <nav class="trilha" aria-label="Hierarquia"><a href="#/nacional">Igreja Presbiteriana do Brasil</a>${ic('seta')}<span>${esc(nome)}</span></nav>${seletorAno()}
             ${comPresb.length < presbs.length || t.validados < t.igrejas ? `<div class="banner info" role="note"><b>i</b><div><strong>Dados parciais do sínodo.</strong> ${comPresb.length} de ${presbs.length} presbitério(s) com igrejas na plataforma; ${t.validados} de ${t.igrejas} igrejas com relatório validado. Os totais não representam o sínodo inteiro.</div></div>` : ''}
@@ -1321,6 +1354,7 @@
               ${kpi('Relatórios recebidos', fmt.int(t.recebidos))}
               ${kpi('Relatórios validados', fmt.int(t.validados))}
             </div>
+            ${cardResumo(Resumo.agregado(ctxA))}
             ${blocoAgregado(linhas, t)}
             ${!Array.isArray(evo) ? card('Evolução histórica', `<p class="nota">${esc(evo?.message || 'Indisponível.')}</p>`) : cardEvolucao(evo, { agregado: true, sub: 'Por exercício · somente relatórios validados · totais por presbitério' })}
             ${card('Presbitérios', `<div class="lista">${presbs.map((e) => {
@@ -1332,7 +1366,7 @@
             }).join('')}</div>`, { sub: 'Navegação: Sínodo → Presbitério → Igreja' })}
             ${comPresb.length > 1 ? card('Comparação entre presbitérios', Charts.barras(comPresb.map(({ p, ls, a }) => ({ label: p, value: a.rol, tip: `${ls[0].presbiterio_nome}: ${fmt.int(a.rol)} membros` })), { fmt: fmt.int })) : ''}
             ${cardExportarAgregado()}`;
-          ligarExportarAgregado(ctxAgregado(linhas, nome, sg, comPresb.length < presbs.length || t.validados < t.igrejas));
+          ligarExportarAgregado(ctxA);
         } catch (e) { el.innerHTML = card('', `<p class="erro">${esc(e.message)}</p>`); }
       },
     };

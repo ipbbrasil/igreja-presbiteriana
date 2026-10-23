@@ -348,6 +348,22 @@ svg.linha .ln-base { stroke: var(--line); stroke-width: 1; }
 svg.linha .ln-v { font-size: 10.5px; font-weight: 600; fill: var(--ink-2); }
 svg.linha .ln-a { font-size: 10px; fill: var(--muted); }
 
+/* Mapa em grade (UF) — escala sequencial de uma só cor (teal), do claro ao escuro */
+:root { --seq-1: #dcebe7; --seq-2: #b2d2ca; --seq-3: #7fb0a5; --seq-4: #4b897c; --seq-5: #2a5e54; }
+.mapa svg { width: 100%; max-width: 380px; height: auto; display: block; margin: 0 auto; }
+.mapa .uf { stroke: var(--paper-raise); stroke-width: 2; }
+.mapa .uf-vazia, .mapa-leg .uf-vazia { fill: var(--paper-sunk); background: var(--paper-sunk); stroke: var(--line); }
+.seq-1 { fill: var(--seq-1); background: var(--seq-1); } .seq-2 { fill: var(--seq-2); background: var(--seq-2); } .seq-3 { fill: var(--seq-3); background: var(--seq-3); }
+.seq-4 { fill: var(--seq-4); background: var(--seq-4); } .seq-5 { fill: var(--seq-5); background: var(--seq-5); }
+.mapa .uf-l { font-size: 11px; font-weight: 700; fill: var(--navy-deep); }
+.mapa .uf-v { font-size: 8.5px; fill: var(--ink-2); }
+.mapa .claro { fill: #fff; }
+.mapa-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
+.mapa-leg .sw { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; display: inline-block; border-radius: 2px; }
+.mapa-sel { margin-bottom: 8px; }
+.resumo p { margin: 0 0 10px; font-size: 14.5px; line-height: 1.6; color: var(--ink); }
+.resumo p:last-of-type { margin-bottom: 0; }
+
 /* Variações relevantes */
 .flag.alta { background: var(--info-bg); color: var(--info-ink); }
 .flag.queda { background: var(--warn-bg); color: var(--warning-ink); }
