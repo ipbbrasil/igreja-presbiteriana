@@ -121,6 +121,38 @@ window.Data = (() => {
     return enviamRelatorio().filter((i) => !comRelatorio.has(i.codigo));
   };
 
+  // ---------- Visão nacional (totais agregados por presbitério e UF) ----------
+  async function painelNacional() {
+    if (state.modo === 'local') return nacionalLocal();
+    const [p, e] = await Promise.all([sb.rpc('painel_nacional', { p_ano: state.ano }), sb.rpc('estrutura_nacional')]);
+    if (p.error) throw new Error(p.error.message.includes('painel_nacional') ? 'A visão nacional ainda não foi ativada no banco (rode o 009_nacional.sql).' : p.error.message);
+    return { linhas: p.data, estrutura: e.error ? [] : e.data };
+  }
+  // Modo local: mesma estrutura, calculada a partir do arquivo do presbitério
+  function nacionalLocal() {
+    const s = state.sinodo || {}, p = state.presbiterio || {};
+    const porUf = {};
+    const unidades = [...state.relatorios.map((r) => ({ uf: r.igreja.uf, r })), ...naoEnviadas().map((i) => ({ uf: i.uf, r: null }))];
+    for (const { uf, r } of unidades) {
+      const k = uf || '—';
+      const l = porUf[k] || (porUf[k] = { sinodo_sigla: s.sigla, sinodo_nome: s.nome, presbiterio_sigla: p.sigla, presbiterio_nome: p.nome, uf: k, igrejas: 0, recebidos: 0, validados: 0,
+        rol: null, n_rol: 0, comungantes: null, n_comungantes: 0, nao_comungantes: null, n_nao_comungantes: 0, alunos_ed: null, n_alunos_ed: 0, admissoes: null, demissoes: null, n_movimento: 0, receita: null, n_receita: 0 });
+      l.igrejas++;
+      if (!r) continue;
+      l.recebidos++;
+      if (r.status !== 'validado') continue;
+      l.validados++;
+      const add = (campo, n, v) => { if (v != null) { l[campo] = (l[campo] || 0) + v; l[n]++; } };
+      const d = r.dados;
+      add('rol', 'n_rol', Regras.T(d.rol_atual)); add('comungantes', 'n_comungantes', Regras.T(d.comungantes?.ano_atual));
+      add('nao_comungantes', 'n_nao_comungantes', Regras.T(d.nao_comungantes?.ano_atual)); add('alunos_ed', 'n_alunos_ed', d.estrutura?.alunos_ed_atual);
+      add('receita', 'n_receita', d.financeiro?.realizado?.total_receita);
+      const a = Regras.somaBloco(d.comungantes?.admissao), m = Regras.somaBloco(d.comungantes?.demissao);
+      if (a != null) { l.admissoes = (l.admissoes || 0) + a; l.demissoes = (l.demissoes || 0) + (m || 0); l.n_movimento++; }
+    }
+    return { linhas: Object.values(porUf), estrutura: [{ sinodo_sigla: s.sigla, sinodo_nome: s.nome, presbiterio_sigla: p.sigla, presbiterio_nome: p.nome }] };
+  }
+
   // ---------- Cadastro institucional ----------
   async function listarPresbiterios() {
     const { data, error } = await sb.from('presbiterios').select('id, nome, sigla, sinodos(sigla)').order('nome');
@@ -351,7 +383,7 @@ window.Data = (() => {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
-    listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
+    painelNacional, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();

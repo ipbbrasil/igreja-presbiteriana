@@ -1120,26 +1120,121 @@
     });
   }
 
-  // ---------- Sínodo ----------
-  function telaSinodo() {
-    const todos = S.relatorios;
-    const val = todos.filter((r) => r.status === 'validado');
-    const com = Regras.consolidar(val, (r) => T(r.dados.comungantes?.ano_atual));
-    const rol = Regras.consolidar(val, (r) => T(r.dados.rol_atual));
+  // ---------- Nacional e Sínodo (totais agregados, só de relatórios validados) ----------
+  const CAMPOS_NAC = [['rol', 'n_rol'], ['comungantes', 'n_comungantes'], ['nao_comungantes', 'n_nao_comungantes'], ['alunos_ed', 'n_alunos_ed'], ['receita', 'n_receita']];
+  function agregar(linhas) {
+    const t = { igrejas: 0, recebidos: 0, validados: 0, admissoes: 0, demissoes: 0, n_movimento: 0 };
+    for (const [c, n] of CAMPOS_NAC) { t[c] = null; t[n] = 0; }
+    for (const l of linhas) {
+      t.igrejas += l.igrejas; t.recebidos += l.recebidos; t.validados += l.validados;
+      for (const [c, n] of CAMPOS_NAC) if (l[n]) { t[c] = (t[c] || 0) + Number(l[c]); t[n] += l[n]; }
+      if (l.n_movimento) { t.admissoes += Number(l.admissoes || 0); t.demissoes += Number(l.demissoes || 0); t.n_movimento += l.n_movimento; }
+    }
+    return t;
+  }
+  const agruparPor = (linhas, chave) => linhas.reduce((m, l) => { (m[l[chave]] = m[l[chave]] || []).push(l); return m; }, {});
+  const cob = (n, de) => `<span class="kpi-f">${n} de ${de} ${de === 1 ? 'igreja' : 'igrejas'}</span>`;
+
+  // Bloco comum: indicadores, cobertura e distribuição por UF
+  function blocoAgregado(linhas, t) {
+    const naoEnv = t.igrejas - t.recebidos, pendentes = t.recebidos - t.validados;
+    const porUf = Object.entries(agruparPor(linhas, 'uf')).map(([uf, ls]) => { const a = agregar(ls); return { label: uf, value: a.rol, tip: `${uf}: ${fmt.int(a.rol)} membros em ${a.n_rol} igreja(s) validada(s) · ${a.igrejas} cadastrada(s)` }; })
+      .sort((a, b) => (b.value ?? -1) - (a.value ?? -1));
+    return `
+      <div class="kpis k4">
+        ${kpi('Rol de membros', fmt.int(t.rol), '', cob(t.n_rol, t.igrejas))}
+        ${kpi('Comungantes', fmt.int(t.comungantes), '', cob(t.n_comungantes, t.igrejas))}
+        ${kpi('Não comungantes', fmt.int(t.nao_comungantes), '', cob(t.n_nao_comungantes, t.igrejas))}
+        ${kpi('Alunos na Escola Dominical', fmt.int(t.alunos_ed), '', cob(t.n_alunos_ed, t.igrejas))}
+      </div>
+      <div class="kpis k4">
+        ${kpi('Admissões de comungantes', fmt.int(t.n_movimento ? t.admissoes : null), '', cob(t.n_movimento, t.igrejas))}
+        ${kpi('Demissões de comungantes', fmt.int(t.n_movimento ? t.demissoes : null), '', cob(t.n_movimento, t.igrejas))}
+        ${kpi('Receita anual realizada', fmt.brlCurto(t.receita), '', cob(t.n_receita, t.igrejas))}
+        ${kpi('Saldo de comungantes', t.n_movimento ? fmt.sinal(t.admissoes - t.demissoes) : '—', '', cob(t.n_movimento, t.igrejas))}
+      </div>
+      ${card('Cobertura estatística', `<div class="cs-bar">
+          ${t.validados ? `<span class="cs-seg st-good" style="flex:${t.validados}" data-tip="Validados: ${t.validados}"></span>` : ''}
+          ${pendentes ? `<span class="cs-seg st-warning" style="flex:${pendentes}" data-tip="Recebidos, não validados: ${pendentes}"></span>` : ''}
+          ${naoEnv ? `<span class="cs-seg st-neutral" style="flex:${naoEnv}" data-tip="Não enviados: ${naoEnv}"></span>` : ''}</div>
+        <div class="cob">${chip('validado')}<strong>${t.validados}</strong>${pendentes ? `<span class="chip warning"><b aria-hidden="true">◔</b>Pendentes de validação</span><strong>${pendentes}</strong>` : ''}${naoEnv ? `${chip('nao_enviado')}<strong>${naoEnv}</strong>` : ''}</div>`,
+        { sub: `${t.recebidos} de ${t.igrejas} igrejas enviaram · somente os ${t.validados} relatórios validados entram nos totais` })}
+      ${card('Distribuição geográfica (por UF)', Charts.barras(porUf, { fmt: fmt.int }), { sub: 'Rol de membros dos relatórios validados, pela UF da igreja' })}`;
+  }
+
+  function telaNacional() {
     return {
-      title: esc(S.sinodo?.nome || 'Sínodo'), sub: `Visão sinodal · ${S.ano}`,
-      body: `<nav class="trilha" aria-label="Hierarquia"><span>Igreja Presbiteriana do Brasil</span>${ic('seta')}<span>${esc(S.sinodo?.nome || '')}</span></nav>
-        <div class="banner info" role="note"><b>i</b><div><strong>Dados parciais do sínodo.</strong> Apenas 1 presbitério está cadastrado na plataforma. Os totais não representam o sínodo inteiro.</div></div>
-        <div class="kpis">
-          ${kpi('Presbitérios cadastrados', '1')}
-          ${kpi('Relatórios recebidos', fmt.int(todos.length))}
-          ${kpi('Relatórios validados', fmt.int(val.length))}
-          ${kpi('Comungantes (validados)', fmt.int(com.total), '', cobertura(com))}
-          ${kpi('Rol de membros (validados)', fmt.int(rol.total), '', cobertura(rol))}
-        </div>
-        ${card('Presbitérios', `<div class="lista"><a class="item" href="#/">
-            <div class="item-m"><strong>${esc(S.presbiterio?.nome || '')}</strong><span class="muted">${esc(S.presbiterio?.sigla || '')} · ${todos.length} relatórios · ${val.length} validados</span></div>
-            <div class="item-n"><strong>${fmt.int(com.total)}</strong><span>comungantes</span></div>${ic('seta', 'chev')}</a></div>`, { sub: 'Navegação: Sínodo → Presbitério → Igreja' })}`,
+      title: 'Igreja Presbiteriana do Brasil', sub: `Visão nacional · ${S.ano}`,
+      body: `<nav class="trilha" aria-label="Hierarquia"><span>Igreja Presbiteriana do Brasil</span></nav><div id="nac"><div class="carregando dark"><span class="spin"></span>Consolidando…</div></div>`,
+      after: async () => {
+        const el = document.getElementById('nac');
+        try {
+          const { linhas, estrutura } = await Data.painelNacional();
+          const t = agregar(linhas);
+          const sinodos = [...new Set(estrutura.map((e) => e.sinodo_sigla))];
+          const presbs = [...new Set(estrutura.map((e) => e.presbiterio_sigla).filter(Boolean))];
+          const porSinodo = agruparPor(linhas, 'sinodo_sigla');
+          const porPresb = Object.entries(agruparPor(linhas, 'presbiterio_sigla')).map(([sg, ls]) => ({ label: sg, value: agregar(ls).rol, tip: `${ls[0].presbiterio_nome}: ${fmt.int(agregar(ls).rol)} membros` }));
+          el.innerHTML = `
+            <div class="banner info" role="note"><b>i</b><div><strong>Visão nacional da plataforma — dados parciais.</strong> Estão cadastrados ${sinodos.length} sínodo(s), ${presbs.length} presbitério(s) e ${t.igrejas} igreja(s).
+              Os totais somam apenas os relatórios validados dessas unidades e <strong>não representam o total da IPB</strong>. Total oficial conhecido da IPB: <em>não informado</em> (será exibido quando houver fonte institucional).</div></div>
+            <div class="kpis k4">
+              ${kpi('Sínodos cadastrados', fmt.int(sinodos.length))}
+              ${kpi('Presbitérios cadastrados', fmt.int(presbs.length))}
+              ${kpi('Igrejas cadastradas', fmt.int(t.igrejas))}
+              ${kpi('Relatórios validados', fmt.int(t.validados), '', `<span class="kpi-f">${t.recebidos} recebidos</span>`)}
+            </div>
+            ${blocoAgregado(linhas, t)}
+            ${card('Sínodos', `<div class="lista">${sinodos.map((sg) => {
+              const ls = porSinodo[sg] || [], a = agregar(ls), e = estrutura.find((x) => x.sinodo_sigla === sg);
+              const np = new Set(estrutura.filter((x) => x.sinodo_sigla === sg && x.presbiterio_sigla).map((x) => x.presbiterio_sigla)).size;
+              return `<a class="item" href="#/sinodo/${esc(sg)}"><div class="item-m"><strong>${esc(e?.sinodo_nome || sg)}</strong>
+                <span class="muted">${esc(sg)} · ${np} presbitério(s) · ${a.validados} de ${a.igrejas} igrejas validadas</span></div>
+                <div class="item-n"><strong>${fmt.int(a.rol)}</strong><span>membros</span></div>${ic('seta', 'chev')}</a>`;
+            }).join('')}</div>`, { sub: 'Navegação: Nacional → Sínodo → Presbitério → Igreja' })}
+            ${card('Comparação entre presbitérios', Charts.barras(porPresb.sort((a, b) => (b.value ?? -1) - (a.value ?? -1)), { fmt: fmt.int }), { sub: 'Rol de membros (relatórios validados)' })}
+            <p class="nota">Somente totais agregados aparecem aqui. O detalhe de cada igreja fica restrito a quem tem jurisdição sobre ela.</p>`;
+        } catch (e) { el.innerHTML = card('', `<p class="erro">${esc(e.message)}</p>`); }
+      },
+    };
+  }
+
+  function telaSinodo(sigla) {
+    const sg = sigla || S.sinodo?.sigla;
+    return {
+      title: 'Sínodo', sub: `Visão sinodal · ${S.ano}`,
+      body: `<div id="sin"><div class="carregando dark"><span class="spin"></span>Consolidando…</div></div>`,
+      after: async () => {
+        const el = document.getElementById('sin');
+        try {
+          const { linhas: todas, estrutura } = await Data.painelNacional();
+          const linhas = todas.filter((l) => l.sinodo_sigla === sg);
+          const presbs = estrutura.filter((e) => e.sinodo_sigla === sg && e.presbiterio_sigla);
+          const nome = estrutura.find((e) => e.sinodo_sigla === sg)?.sinodo_nome || sg;
+          document.querySelector('.ab-t h1').textContent = nome;
+          const t = agregar(linhas);
+          const porPresb = agruparPor(linhas, 'presbiterio_sigla');
+          const comPresb = Object.entries(porPresb).map(([p, ls]) => ({ p, ls, a: agregar(ls) }));
+          el.innerHTML = `
+            <nav class="trilha" aria-label="Hierarquia"><a href="#/nacional">Igreja Presbiteriana do Brasil</a>${ic('seta')}<span>${esc(nome)}</span></nav>
+            ${comPresb.length < presbs.length || t.validados < t.igrejas ? `<div class="banner info" role="note"><b>i</b><div><strong>Dados parciais do sínodo.</strong> ${comPresb.length} de ${presbs.length} presbitério(s) com igrejas na plataforma; ${t.validados} de ${t.igrejas} igrejas com relatório validado. Os totais não representam o sínodo inteiro.</div></div>` : ''}
+            <div class="kpis k4">
+              ${kpi('Presbitérios cadastrados', fmt.int(presbs.length))}
+              ${kpi('Igrejas cadastradas', fmt.int(t.igrejas))}
+              ${kpi('Relatórios recebidos', fmt.int(t.recebidos))}
+              ${kpi('Relatórios validados', fmt.int(t.validados))}
+            </div>
+            ${blocoAgregado(linhas, t)}
+            ${card('Presbitérios', `<div class="lista">${presbs.map((e) => {
+              const a = agregar(porPresb[e.presbiterio_sigla] || []);
+              const meu = e.presbiterio_sigla === S.presbiterio?.sigla;
+              const dentro = `<div class="item-m"><strong>${esc(e.presbiterio_nome)}</strong><span class="muted">${esc(e.presbiterio_sigla)} · ${a.validados} de ${a.igrejas} igrejas validadas${meu ? '' : ' · detalhe das igrejas restrito ao presbitério'}</span></div>
+                <div class="item-n"><strong>${fmt.int(a.rol)}</strong><span>membros</span></div>`;
+              return meu ? `<a class="item" href="#/">${dentro}${ic('seta', 'chev')}</a>` : `<div class="item">${dentro}</div>`;
+            }).join('')}</div>`, { sub: 'Navegação: Sínodo → Presbitério → Igreja' })}
+            ${comPresb.length > 1 ? card('Comparação entre presbitérios', Charts.barras(comPresb.map(({ p, ls, a }) => ({ label: p, value: a.rol, tip: `${ls[0].presbiterio_nome}: ${fmt.int(a.rol)} membros` })), { fmt: fmt.int })) : ''}`;
+        } catch (e) { el.innerHTML = card('', `<p class="erro">${esc(e.message)}</p>`); }
+      },
     };
   }
 
@@ -1629,7 +1724,8 @@
         if (!envio || !Data.podeValidar() || Data.exercicioFechado()) { location.replace('#/pendencias'); return; }
         return render(telaEditar({ envio }), 'pendencias');
       }
-      case 'sinodo': return render(telaSinodo(), 'sinodo');
+      case 'sinodo': return render(telaSinodo(p1), 'sinodo');
+      case 'nacional': return render(telaNacional(), 'sinodo');
       case 'perfil': return render(telaPerfil(), 'perfil');
       case 'ajuda':
         return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');

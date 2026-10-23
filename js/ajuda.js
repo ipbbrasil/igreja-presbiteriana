@@ -228,8 +228,15 @@ window.Ajuda = (() => {
       </ul>`,
     },
     {
-      id: 'sinodo', titulo: 'Visão do sínodo', para: ['admin'], html: `
-      <p>Mostra os presbitérios cadastrados e os totais do sínodo, somente com relatórios validados. Enquanto apenas um presbitério estiver na plataforma, os números aparecem marcados como <strong>parciais</strong>.</p>`,
+      id: 'sinodo', titulo: 'Visão do sínodo e visão nacional', para: ['admin'], html: `
+      <p>Navegação hierárquica: <strong>Nacional → Sínodo → Presbitério → Igreja</strong>. Na aba <strong>Sínodo</strong>, toque em “Igreja Presbiteriana do Brasil” no topo para abrir a visão nacional.</p>
+      <ul>
+        <li><strong>Visão nacional:</strong> sínodos, presbitérios e igrejas cadastrados na plataforma; rol, comungantes, não comungantes, Escola Dominical, admissões, demissões e receita; cobertura estatística (validados, pendentes, não enviados); distribuição por UF; comparação entre presbitérios.</li>
+        <li><strong>Visão do sínodo:</strong> os mesmos indicadores para os presbitérios do sínodo, com a lista de presbitérios e a comparação entre eles.</li>
+        <li>Somente relatórios <strong>validados</strong> entram nos totais, e cada número mostra quantas igrejas contribuíram.</li>
+        <li>Enquanto nem todas as unidades estiverem na plataforma, os totais aparecem como <strong>parciais</strong> e não são apresentados como o total da IPB. O total oficial da denominação só será exibido quando houver fonte institucional.</li>
+        <li>Estas telas mostram apenas <strong>totais agregados</strong>. O detalhe de cada igreja continua restrito a quem tem jurisdição sobre ela.</li>
+      </ul>`,
     },
     {
       id: 'instalar', titulo: 'Instalar no celular e atualizar', para: ['todos'], html: `
