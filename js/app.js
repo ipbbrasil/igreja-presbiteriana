@@ -1269,7 +1269,7 @@
         <div data-mapa="rol">${mapa((a) => (a.n_rol ? a.rol : null), fmt.int, 'Rol de membros')}</div>
         <div data-mapa="igrejas" hidden>${mapa((a) => a.igrejas, fmt.int, 'Igrejas cadastradas')}</div>
         <div data-mapa="cob" hidden>${mapa((a) => (a.igrejas ? a.validados / a.igrejas : null), (v) => fmt.pct(v, 0), '% de relatórios validados')}</div>`,
-    { sub: 'Mapa esquemático: cada quadrado é um estado, na posição aproximada. Cor mais escura = valor maior. Toque em um estado para ver os números.' });
+    { sub: 'Cor mais escura = valor maior; estados em bege não têm dados. Toque em um estado para ver os números. Os estados pequenos têm o rótulo do lado de fora, com uma linha.' });
   }
   document.addEventListener('change', (e) => {
     if (!e.target.classList.contains('mapa-ind')) return;

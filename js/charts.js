@@ -97,40 +97,71 @@ window.Charts = (() => {
       <line x1="${PX - 14}" y1="${H - PB}" x2="${W - PX + 14}" y2="${H - PB}" class="ln-base"/>${trechos}${marcas}</svg>`;
   }
 
-  // Mapa em grade do Brasil: cada UF é um quadrado na posição aproximada. Cor sequencial (uma só cor,
-  // do claro ao escuro) pelo valor; UF sem dado fica neutra. itens: [{ uf, valor, tip }]
-  const GRADE_UF = {
-    RR: [2, 0], AP: [3, 0],
-    AM: [1, 1], PA: [2, 1], MA: [3, 1], CE: [4, 1], RN: [5, 1],
-    AC: [0, 2], RO: [1, 2], MT: [2, 2], TO: [3, 2], PI: [4, 2], PB: [5, 2],
-    MS: [1, 3], GO: [2, 3], DF: [3, 3], BA: [4, 3], PE: [5, 3], AL: [6, 3],
-    PR: [1, 4], SP: [2, 4], MG: [3, 4], ES: [4, 4], SE: [5, 4],
-    SC: [1, 5], RJ: [3, 5],
-    RS: [1, 6],
+  // Mapa do Brasil por UF (contornos do IBGE em js/mapa-brasil.js). Cor sequencial (uma só cor, do claro
+  // ao escuro) pelo valor; UF sem dado fica neutra. itens: [{ uf, valor, tip }]
+  const NOMES_UF = {
+    AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia', CE: 'Ceará', DF: 'Distrito Federal', ES: 'Espírito Santo',
+    GO: 'Goiás', MA: 'Maranhão', MT: 'Mato Grosso', MS: 'Mato Grosso do Sul', MG: 'Minas Gerais', PA: 'Pará', PB: 'Paraíba',
+    PR: 'Paraná', PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte', RS: 'Rio Grande do Sul',
+    RO: 'Rondônia', RR: 'Roraima', SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe', TO: 'Tocantins',
   };
+  const CABE_DENTRO = 15; // folga mínima (px do mapa) para sigla e valor caberem dentro do estado
   function mapaUF(itens, { fmt = (v) => v, rotulo = 'Valor' } = {}) {
-    const porUf = Object.fromEntries(itens.filter((i) => GRADE_UF[i.uf]).map((i) => [i.uf, i]));
-    const vals = Object.values(porUf).map((i) => i.valor).filter((v) => Regras.temValor(v));
-    if (!vals.length) return '<p class="vazio">Sem dados por UF</p>';
+    const M = window.MAPA_BRASIL;
+    if (!M) return '<p class="vazio">Mapa indisponível</p>';
+    const porUf = Object.fromEntries(itens.filter((i) => M.ufs[i.uf]).map((i) => [i.uf, i]));
+    const comDado = Object.values(porUf).filter((i) => Regras.temValor(i.valor));
+    if (!comDado.length) return '<p class="vazio">Sem dados por UF</p>';
     // Escala começa em zero (não no menor valor): evita exagerar diferenças pequenas entre estados
-    const lo = Math.min(0, ...vals), hi = Math.max(...vals);
+    const vals = comDado.map((i) => i.valor), lo = Math.min(0, ...vals), hi = Math.max(...vals);
     const passos = lo === hi ? 1 : 5;
     const faixa = (v) => (passos === 1 ? 5 : 1 + Math.round(((v - lo) / (hi - lo)) * 4)); // 5 faixas iguais de zero ao maior valor
-    const C = 42, G = 4, W = 7 * (C + G), H = 7 * (C + G);
-    const celulas = Object.entries(GRADE_UF).map(([uf, [cx, cy]]) => {
-      const i = porUf[uf], ok = i && Regras.temValor(i.valor);
-      const nivel = ok ? faixa(i.valor) : 0;
-      const x = cx * (C + G), y = cy * (C + G);
-      return `<g${ok ? ` data-tip="${esc(i.tip || `${uf}: ${fmt(i.valor)}`)}"` : ` data-tip="${uf}: sem dados"`}>
-        <rect x="${x}" y="${y}" width="${C}" height="${C}" rx="4" class="uf ${ok ? `seq-${nivel}` : 'uf-vazia'}"/>
-        <text x="${x + C / 2}" y="${y + C / 2 + (ok ? -3 : 4)}" text-anchor="middle" class="uf-l${nivel >= 4 ? ' claro' : ''}">${uf}</text>
-        ${ok ? `<text x="${x + C / 2}" y="${y + C / 2 + 11}" text-anchor="middle" class="uf-v${nivel >= 4 ? ' claro' : ''}">${esc(fmt(i.valor))}</text>` : ''}</g>`;
+    const dica = (uf) => { const i = porUf[uf]; return i && Regras.temValor(i.valor) ? i.tip || `${uf}: ${fmt(i.valor)}` : `${NOMES_UF[uf]}: sem dados`; };
+    const nivelDe = (uf) => { const i = porUf[uf]; return i && Regras.temValor(i.valor) ? faixa(i.valor) : 0; };
+
+    // Estados: os com dado ficam por cima (contorno inteiro visível)
+    const ordem = Object.keys(M.ufs).sort((a, b) => (nivelDe(a) > 0) - (nivelDe(b) > 0));
+    const formas = ordem.map((uf) => { const n = nivelDe(uf); return `<path d="${M.ufs[uf].d}" class="uf ${n ? `seq-${n} com` : 'uf-vazia'}" data-tip="${esc(dica(uf))}"/>`; }).join('');
+
+    // Rótulos: dentro dos estados grandes; os pequenos com dado ganham rótulo do lado de fora, com linha-guia
+    const dentro = [], fora = [], ocupado = []; // ocupado: caixas dos rótulos de dentro [x0, y0, x1, y1]
+    for (const uf of Object.keys(M.ufs)) {
+      const u = M.ufs[uf], n = nivelDe(uf), claro = n >= 4 ? ' claro' : '';
+      if (u.r >= CABE_DENTRO) {
+        ocupado.push([u.x - 24, u.y - 18, u.x + 24, n ? u.y + 18 : u.y + 8]);
+        dentro.push(n
+          ? `<text x="${u.x}" y="${u.y - 3}" class="uf-l${claro}">${uf}</text><text x="${u.x}" y="${u.y + 14}" class="uf-v${claro}">${esc(fmt(porUf[uf].valor))}</text>`
+          : `<text x="${u.x}" y="${u.y + 5}" class="uf-l apagado">${uf}</text>`);
+      } else if (n) fora.push(uf);
+    }
+    // Rótulos de fora: na margem direita (litoral), espaçados para não se sobreporem. O DF fica no meio do
+    // mapa: testa posições em volta dele e usa a que menos cobre os rótulos de dentro.
+    const X_MARGEM = M.largura + 14, LINHA = 30;
+    const posFora = {}; let ultimo = -Infinity;
+    for (const uf of fora.filter((u) => u !== 'DF').sort((a, b) => M.ufs[a].y - M.ufs[b].y)) { const y = Math.max(M.ufs[uf].y, ultimo + LINHA); posFora[uf] = [X_MARGEM, y]; ultimo = y; }
+    if (fora.includes('DF')) {
+      const { x, y } = M.ufs.DF, larg = 30 + 9 * String(fmt(porUf.DF.valor)).length;
+      const sobra = ([lx, ly]) => ocupado.reduce((s, [a, b, c, d]) => s + Math.max(0, Math.min(c, lx + larg) - Math.max(a, lx)) * Math.max(0, Math.min(d, ly + 4) - Math.max(b, ly - 14)), 0);
+      posFora.DF = [[x + 40, y - 34], [x + 44, y + 4], [x + 30, y + 44], [x - 40 - larg, y - 34], [x - 44 - larg, y + 4], [x - 30 - larg, y + 44], [x - larg / 2, y - 48]]
+        .reduce((m, p) => (sobra(p) < sobra(m) ? p : m));
+    }
+    const chamadas = fora.map((uf) => {
+      const u = M.ufs[uf], [lx, ly] = posFora[uf], valor = fmt(porUf[uf].valor);
+      const x2 = lx < u.x ? lx + 30 + 9 * String(valor).length : lx - 4; // rótulo à esquerda: a linha chega pelo fim do texto
+      return `<g class="chamada" data-tip="${esc(dica(uf))}"><line x1="${u.x}" y1="${u.y}" x2="${x2}" y2="${ly - 5}"/><circle cx="${u.x}" cy="${u.y}" r="2.5"/>
+        <text x="${lx}" y="${ly}" class="uf-c"><tspan class="uf-c-l">${uf}</tspan> ${esc(valor)}</text></g>`;
     }).join('');
+    const largura = M.largura + (fora.some((uf) => uf !== 'DF') ? 104 : 8);
+
     const legenda = passos === 1
       ? `<span><i class="sw seq-5"></i>${esc(fmt(lo))}</span>`
       : [lo, hi].map((v, k) => `<span><i class="sw seq-${k ? 5 : 1}"></i>${esc(fmt(v))}</span>`).join('<span class="mapa-seta">→</span>');
-    return `<div class="mapa"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(rotulo)} por UF: ${esc(Object.values(porUf).filter((i) => Regras.temValor(i.valor)).map((i) => `${i.uf} ${fmt(i.valor)}`).join('; '))}">${celulas}</svg>
-      <div class="mapa-leg">${legenda}<span><i class="sw uf-vazia"></i>sem dados</span></div></div>`;
+    // Lista dos estados com dado (do maior para o menor): leitura direta, sem precisar acertar o toque no mapa
+    const lista = comDado.slice().sort((a, b) => b.valor - a.valor).map((i) =>
+      `<li data-tip="${esc(dica(i.uf))}"><i class="sw seq-${faixa(i.valor)}"></i><span>${NOMES_UF[i.uf]} <small>${i.uf}</small></span><strong>${esc(fmt(i.valor))}</strong></li>`).join('');
+    return `<div class="mapa"><svg viewBox="-4 -4 ${largura} ${M.altura + 8}" role="img" aria-label="${esc(rotulo)} por UF: ${esc(comDado.map((i) => `${NOMES_UF[i.uf]} ${fmt(i.valor)}`).join('; '))}">${formas}${dentro.join('')}${chamadas}</svg>
+      <div class="mapa-leg">${legenda}<span><i class="sw uf-vazia"></i>sem dados</span></div>
+      <ul class="mapa-lista">${lista}</ul></div>`;
   }
 
   // Tooltip global para qualquer [data-tip] (mouse e toque)

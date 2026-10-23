@@ -350,14 +350,29 @@ svg.linha .ln-a { font-size: 10px; fill: var(--muted); }
 
 /* Mapa em grade (UF) — escala sequencial de uma só cor (teal), do claro ao escuro */
 :root { --seq-1: #dcebe7; --seq-2: #b2d2ca; --seq-3: #7fb0a5; --seq-4: #4b897c; --seq-5: #2a5e54; }
-.mapa svg { width: 100%; max-width: 380px; height: auto; display: block; margin: 0 auto; }
-.mapa .uf { stroke: var(--paper-raise); stroke-width: 2; }
-.mapa .uf-vazia, .mapa-leg .uf-vazia { fill: var(--paper-sunk); background: var(--paper-sunk); stroke: var(--line); }
+.mapa svg { width: 100%; max-width: 460px; height: auto; display: block; margin: 0 auto; overflow: visible; }
+.mapa .uf { stroke: var(--paper-raise); stroke-width: 1.2; stroke-linejoin: round; transition: opacity .15s; }
+.mapa .uf.com { stroke-width: 1.6; }
+.mapa .uf-vazia, .mapa-leg .uf-vazia, .mapa-lista .uf-vazia { fill: var(--paper-sunk); background: var(--paper-sunk); }
+.mapa-leg .uf-vazia { box-shadow: inset 0 0 0 1px var(--line); }
 .seq-1 { fill: var(--seq-1); background: var(--seq-1); } .seq-2 { fill: var(--seq-2); background: var(--seq-2); } .seq-3 { fill: var(--seq-3); background: var(--seq-3); }
 .seq-4 { fill: var(--seq-4); background: var(--seq-4); } .seq-5 { fill: var(--seq-5); background: var(--seq-5); }
-.mapa .uf-l { font-size: 11px; font-weight: 700; fill: var(--navy-deep); }
-.mapa .uf-v { font-size: 8.5px; fill: var(--ink-2); }
-.mapa .claro { fill: #fff; }
+@media (hover: hover) { .mapa svg:hover .uf.com:not(:hover) { opacity: .7; } }
+/* Textos dentro do mapa: não capturam o toque (quem responde é o estado) e ganham um contorno claro para ler sobre qualquer cor */
+.mapa text { pointer-events: none; text-anchor: middle; paint-order: stroke; stroke: var(--paper-raise); stroke-width: 3px; stroke-linejoin: round; }
+.mapa .uf-l { font-size: 17px; font-weight: 700; fill: var(--navy-deep); }
+.mapa .uf-l.apagado { font-size: 13px; font-weight: 600; fill: var(--muted); stroke: none; }
+.mapa .uf-v { font-size: 15px; font-weight: 600; fill: var(--ink-2); }
+.mapa .claro { fill: #fff; stroke: none; }
+.mapa .chamada { cursor: default; }
+.mapa .chamada line { stroke: var(--muted); stroke-width: 1.2; }
+.mapa .chamada circle { fill: var(--navy-deep); stroke: var(--paper-raise); stroke-width: 1.2; }
+.mapa .uf-c { text-anchor: start; font-size: 15px; font-weight: 600; fill: var(--ink-2); }
+.mapa .uf-c-l { font-weight: 700; fill: var(--navy-deep); }
+.mapa-lista { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 16px; }
+.mapa-lista li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.mapa-lista li span { flex: 1; min-width: 0; } .mapa-lista small { color: var(--muted); }
+.mapa-lista .sw { width: 12px; height: 12px; border-radius: 2px; flex: none; }
 .mapa-leg { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
 .mapa-leg .sw { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; display: inline-block; border-radius: 2px; }
 .mapa-sel { margin-bottom: 8px; }
