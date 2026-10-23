@@ -332,6 +332,15 @@ select, .campos input[type="text"], .campos input[type="email"], .campos input[t
 .ic-btn { width: 44px; padding: 0; flex: none; }
 .env-a { display: flex; gap: 8px; align-items: center; flex: none; }
 
+/* Variações relevantes */
+.flag.alta { background: var(--info-bg); color: var(--info-ink); }
+.flag.queda { background: var(--warn-bg); color: var(--warning-ink); }
+.lim { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+.lim select { width: auto; height: 36px; }
+.tbl.var td small { display: block; white-space: normal; color: var(--muted); font-size: 11.5px; margin-top: 3px; min-width: 180px; }
+.tbl.var td:last-child { white-space: normal; text-align: left; }
+.tbl.var th:last-child { text-align: left; }
+
 /* Exercício */
 .exercicio { border-top: 3px solid var(--line); }
 .exercicio.fechado { border-top-color: var(--good); }

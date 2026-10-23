@@ -54,6 +54,24 @@
     clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2600);
   };
 
+  // ---------- Variações relevantes ----------
+  // Limite escolhido pelo usuário (fica salvo só neste aparelho)
+  const lerLimite = () => { try { return +localStorage.getItem('painel.limiteVar') || Regras.LIMITES_VARIACAO.pct; } catch (e) { return Regras.LIMITES_VARIACAO.pct; } };
+  ui.limiteVar = lerLimite();
+  const variacoes = (r) => Regras.variacoesRelevantes(r.dados, { pct: ui.limiteVar });
+  const pctTxt = (p) => `${p > 0 ? '+' : p < 0 ? '−' : ''}${Math.abs(p * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  const seloVar = (x) => (x.tipo === 'dado' ? '<span class="flag crit">verificar dado</span>'
+    : !x.relevante ? '<span class="flag ok">dentro do normal</span>'
+    : `<span class="flag ${x.abs < 0 ? 'queda' : 'alta'}">${x.abs < 0 ? 'queda' : 'alta'} ${x.tipo === 'informado' ? 'informada' : 'real'}</span>`);
+  function tabelaVariacoes(lista, { igreja = false } = {}) {
+    return `<div class="tbl-wrap"><table class="tbl var"><thead><tr>${igreja ? '<th>Igreja</th>' : ''}<th>Indicador</th><th>Ano anterior</th><th>Ano atual</th><th>Variação</th><th>Leitura</th></tr></thead><tbody>
+      ${lista.map(({ r, x }) => `<tr>${igreja ? `<td><a href="#/igreja/${esc(r.igreja.codigo)}/membresia">${esc(nomeCurto(r.igreja.nome))}</a></td>` : ''}
+        <td>${esc(x.titulo)}</td><td>${fmt.int(x.anterior)}</td><td>${fmt.int(x.atual)}</td>
+        <td><strong>${x.abs != null ? `${fmt.sinal(x.abs)} (${pctTxt(x.pct)})` : '—'}</strong></td>
+        <td>${x.tipo === 'sem_comparacao' ? '<span class="na">sem comparação</span>' : seloVar(x)}<small>${esc(x.explicacao)}</small></td></tr>`).join('')}
+    </tbody></table></div>`;
+  }
+
   // ---------- Rastreabilidade ----------
   // Valor tocável: abre a origem do dado (documento, página/célula, extração, validação, correções)
   const rv = (html, caminho, i = null, igreja = null) => `<button type="button" class="rv" data-campo="${caminho}"${i != null ? ` data-i="${i}"` : ''}${igreja ? ` data-igreja="${esc(igreja)}"` : ''} title="Ver a origem deste valor">${html}</button>`;
@@ -331,6 +349,16 @@
         ${kpi('Despesa anual realizada', rvc(fmt.brlCurto(desp.total), 'desp'), '', cobertura(desp))}
       </div>
 
+      ${(() => {
+        const rel = base.flatMap((r) => variacoes(r).filter((x) => x.relevante).map((x) => ({ r, x })))
+          .sort((a, b) => (b.x.tipo === 'dado') - (a.x.tipo === 'dado') || Math.abs(b.x.pct) - Math.abs(a.x.pct));
+        const sel = `<label class="lim">Alertar a partir de <select id="lim-var">${[0.1, 0.15, 0.2, 0.25, 0.3].map((p) => `<option value="${p}"${Math.abs(p - ui.limiteVar) < 0.001 ? ' selected' : ''}>${Math.round(p * 100)}%</option>`).join('')}</select> e ${Regras.LIMITES_VARIACAO.minimo} pessoas</label>`;
+        return card('Variações relevantes no ano', `${sel}
+          ${rel.length ? tabelaVariacoes(rel, { igreja: true }) : '<p class="vazio">Nenhuma variação acima do limite entre as igrejas consideradas.</p>'}
+          <p class="nota">Compara o ano anterior com o ano atual informados no próprio relatório. “Alta/queda real”: a movimentação registrada (admissões − demissões) explica a mudança. “Informada”: o relatório não tem movimentação para conferir (ex.: Escola Dominical). “Verificar dado”: a mudança não é explicada pelo que foi registrado — provável erro no relatório. Regra fixa, sem estimativas.</p>`,
+          { sub: `${rel.length} variação(ões) em ${new Set(rel.map((v) => v.r.igreja.codigo)).size} igreja(s) · ${ui.escopo === 'todos' ? 'todos os recebidos' : 'somente validados'}` });
+      })()}
+
       <div class="grid2">
         ${card('Comungantes por igreja', Charts.barras(porIgreja((r) => T(r.dados.comungantes?.ano_atual)), { fmt: fmt.int }), { sub: 'Toque em uma igreja para abrir o painel dela' })}
         ${card('Receita anual realizada por igreja', Charts.barras(porIgreja((r) => r.dados.financeiro?.realizado?.total_receita), { fmt: fmt.brlCurto }), { sub: 'Total da receita anual, sem saldo anterior' })}
@@ -368,6 +396,11 @@
       title: esc(S.presbiterio?.nome || 'Presbitério'), sub: `Exercício ${S.ano}`, body,
       after: () => {
         $app.querySelectorAll('[data-escopo]').forEach((b) => b.addEventListener('click', () => { ui.escopo = b.dataset.escopo; rota(); }));
+        document.getElementById('lim-var')?.addEventListener('change', (e) => {
+          ui.limiteVar = +e.target.value;
+          try { localStorage.setItem('painel.limiteVar', String(ui.limiteVar)); } catch (err) { /* sem storage */ }
+          const y = window.scrollY; rota(); window.scrollTo(0, y);
+        });
         $app.querySelectorAll('[data-exportar]').forEach((b) => b.addEventListener('click', async () => {
           const html = b.innerHTML;
           b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
@@ -391,7 +424,10 @@
         <div class="item-m">
           <strong>${esc(r.igreja.nome)}</strong>
           <span class="muted">${esc(r.igreja.cidade)} · ${esc(r.igreja.uf)}</span>
-          <div class="item-s">${chip(r.status)}${erros || v.falhas ? `<span class="flag">${erros + v.falhas} ${erros + v.falhas === 1 ? 'pendência' : 'pendências'}</span>` : ''}</div>
+          <div class="item-s">${chip(r.status)}${erros || v.falhas ? `<span class="flag">${erros + v.falhas} ${erros + v.falhas === 1 ? 'pendência' : 'pendências'}</span>` : ''}${(() => {
+            const n = variacoes(r).filter((x) => x.relevante).length;
+            return n ? `<span class="flag alta">${n} ${n > 1 ? 'variações relevantes' : 'variação relevante'}</span>` : '';
+          })()}</div>
         </div>
         <div class="item-n"><strong>${fmt.int(T(r.dados.rol_atual))}</strong><span>membros</span></div>
         ${ic('seta', 'chev')}
@@ -671,6 +707,8 @@
           <div><strong>${rv(fmt.int(d.estrutura?.escolas_dominicais), 'estrutura.escolas_dominicais')}</strong><span>Escolas dominicais</span></div>
           <div><strong>${rv(fmt.int(d.departamentos?.totais?.[0]), 'departamentos.totais', 0)}</strong><span>Departamentos internos</span></div>
         </div>`, { fonte: fonte('pág. 1 · seção II') })}
+        ${card('Variações no ano', tabelaVariacoes(variacoes(r).map((x) => ({ r, x }))),
+          { sub: `Ano anterior × ano atual · relevante a partir de ${Math.round(ui.limiteVar * 100)}% e ${Regras.LIMITES_VARIACAO.minimo} pessoas${variacoes(r).some((x) => x.relevante) ? '' : ' · nenhuma variação relevante'}` })}
         <p class="nota">Toque em um número sublinhado para ver a origem: documento, página ou célula, extração, validação e correções.</p>`;
     } else if (aba === 'membresia') {
       const c = d.comungantes || {}, nc = d.nao_comungantes || {};
@@ -734,7 +772,7 @@
         b.addEventListener('click', async () => {
           const html = b.innerHTML;
           b.disabled = true; b.innerHTML = '<span class="spin"></span>Gerando…';
-          try { await Exportar.pdfIgreja(r, { presbiterio: S.presbiterio, sinodo: S.sinodo, exercicio: S.exercicio }); }
+          try { await Exportar.pdfIgreja(r, { presbiterio: S.presbiterio, sinodo: S.sinodo, exercicio: S.exercicio, limiteVar: ui.limiteVar }); }
           catch (e) { toast('Não foi possível gerar o PDF: ' + e.message); }
           b.disabled = false; b.innerHTML = html;
         });

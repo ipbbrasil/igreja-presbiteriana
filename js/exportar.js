@@ -314,6 +314,16 @@ window.Exportar = (() => {
         [' ', { head: [['Indicador', 'Nº']], body: itens.slice(metade).map(([l, v]) => [l, num(v)]), columnStyles: { 1: { halign: 'right' } } }]);
     }
 
+    // Variações relevantes no ano (mesma regra do painel)
+    const pctV = ctx.limiteVar || Regras.LIMITES_VARIACAO.pct;
+    P.tabela(`Variações no ano (relevante a partir de ${Math.round(pctV * 100)}% e ${Regras.LIMITES_VARIACAO.minimo} pessoas)`, {
+      head: [['Indicador', 'Anterior', 'Atual', 'Variação', 'Leitura']],
+      body: Regras.variacoesRelevantes(d, { pct: pctV }).map((x) => [x.titulo, num(x.anterior), num(x.atual),
+        x.abs != null ? pdfTxt(`${fmt.sinal(x.abs)} (${(x.pct * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)`) : '—',
+        pdfTxt(`${x.tipo === 'dado' ? 'VERIFICAR DADO' : x.tipo === 'sem_comparacao' ? 'Sem comparação' : x.relevante ? `${x.abs < 0 ? 'QUEDA' : 'ALTA'} ${x.tipo === 'informado' ? 'informada' : 'real'}` : 'Dentro do normal'} — ${x.explicacao}`)]),
+      columnStyles: { 0: { cellWidth: 38 }, 1: { halign: 'right', cellWidth: 16 }, 2: { halign: 'right', cellWidth: 16 }, 3: { halign: 'right', cellWidth: 24 } },
+    });
+
     // Conferência: verificações de soma e alertas da leitura
     const verif = verificacoes(d);
     const val = (x, v) => (v == null ? '—' : x.moeda ? brl(v) : num(v));

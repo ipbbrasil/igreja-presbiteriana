@@ -61,6 +61,7 @@ window.Ajuda = (() => {
         <li><strong>Recebimento dos relatórios:</strong> barra com a situação de cada relatório; toque para ir à Conferência.</li>
         <li><strong>Indicadores:</strong> Escola Dominical (alunos e professores), receita e despesa realizadas. Abaixo de cada um: “n de m igrejas” que informaram.</li>
         <li><strong>Gráficos por igreja:</strong> comungantes e receita. Toque em uma igreja para abrir a página dela.</li>
+        <li><strong>Variações relevantes no ano:</strong> compara o ano anterior com o atual (comungantes, não comungantes, rol e alunos da Escola Dominical) e lista as mudanças acima do limite escolhido (padrão 15% e pelo menos 5 pessoas; ajustável de 10% a 30%). Cada uma vem classificada: <em>alta/queda real</em> (a movimentação de admissões e demissões explica), <em>informada</em> (não há movimentação para conferir) ou <em>verificar dado</em> (a mudança não bate com o que foi registrado — provável erro). A mesma análise aparece na página de cada igreja e no PDF da igreja.</li>
         <li><strong>Movimentação de comungantes:</strong> admissões e demissões por tipo e o saldo do período.</li>
         <li><strong>Composição das despesas</strong> e <strong>Liderança formal</strong> (pastores, presbíteros, diáconos…).</li>
         <li><strong>Exportar:</strong> planilha Excel e resumo em PDF (veja “Exportação”).</li>

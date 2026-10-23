@@ -130,6 +130,45 @@ window.Regras = (() => {
     return out;
   }
 
+  // ---------- Variações relevantes no ano (ano anterior × ano atual, do próprio relatório) ----------
+  // Relevante = |variação| ≥ pct E ≥ minimo pessoas. Para membresia, confere se a movimentação
+  // registrada explica a mudança (anterior + admissões − demissões = atual).
+  const LIMITES_VARIACAO = { pct: 0.15, minimo: 5 };
+  function variacoesRelevantes(d, { pct = LIMITES_VARIACAO.pct, minimo = LIMITES_VARIACAO.minimo } = {}) {
+    const c = d.comungantes || {}, nc = d.nao_comungantes || {}, e = d.estrutura || {};
+    const mov = (b) => {
+      const adm = somaBloco(b.admissao), dem = somaBloco(b.demissao);
+      return adm == null || dem == null ? null : { adm, dem };
+    };
+    const soma = (a, b) => (temValor(a) && temValor(b) ? a + b : null);
+    const movC = mov(c), movN = mov(nc);
+    const movRol = movC && movN ? { adm: movC.adm + movN.adm, dem: movC.dem + movN.dem } : null;
+    const itens = [
+      ['comungantes', 'Comungantes', T(c.ano_anterior), T(c.ano_atual), movC],
+      ['nao_comungantes', 'Não comungantes', T(nc.ano_anterior), T(nc.ano_atual), movN],
+      ['rol', 'Rol de membros', soma(T(c.ano_anterior), T(nc.ano_anterior)), T(d.rol_atual), movRol],
+      ['alunos_ed', 'Alunos da Escola Dominical', e.alunos_ed_anterior, e.alunos_ed_atual, undefined],
+    ];
+    const out = [];
+    for (const [id, titulo, ant, atu, m] of itens) {
+      if (!temValor(ant) || !temValor(atu)) { out.push({ id, titulo, anterior: ant ?? null, atual: atu ?? null, tipo: 'sem_comparacao', relevante: false, explicacao: 'Um dos anos não foi informado; não há comparação.' }); continue; }
+      const abs = atu - ant, p = ant ? abs / ant : (atu ? 1 : 0);
+      const relevante = Math.abs(abs) >= minimo && Math.abs(p) >= pct;
+      let tipo = 'real', explicacao;
+      if (m === undefined) { tipo = 'informado'; explicacao = 'Informado pela igreja (o relatório não tem movimentação para conferir).'; }
+      else if (m === null) { tipo = 'dado'; explicacao = 'Movimentação incompleta: não dá para conferir se ela explica a mudança.'; }
+      else {
+        const esperado = ant + m.adm - m.dem;
+        explicacao = `Admissões ${m.adm}, demissões ${m.dem}`;
+        if (esperado === atu) explicacao += ' — explicam a mudança.';
+        else { tipo = 'dado'; explicacao += ` — esperado ${esperado}, informado ${atu}: a movimentação registrada não explica a mudança.`; }
+        if (abs < 0 && m.dem === 0) { tipo = 'dado'; explicacao = `Queda sem nenhuma demissão registrada (esperado ${esperado}, informado ${atu}).`; }
+      }
+      out.push({ id, titulo, anterior: ant, atual: atu, abs, pct: p, tipo, relevante, explicacao });
+    }
+    return out;
+  }
+
   // ---------- Consolidação ----------
   // Soma apenas valores informados e registra quantas unidades contribuíram.
   function consolidar(rels, fn) {
@@ -150,5 +189,6 @@ window.Regras = (() => {
   return {
     T, temValor, fmt, STATUS, ORDEM_STATUS, PAPEIS, ROTULOS, DETALHE, RECEITAS, DESPESAS,
     COMPOSICAO_DESPESA, DEPARTAMENTOS, LIDERANCA, somaBloco, somaCampos, verificacoes, consolidar, variacao,
+    variacoesRelevantes, LIMITES_VARIACAO,
   };
 })();
