@@ -127,10 +127,42 @@ window.Data = (() => {
     if (error) throw new Error(error.message);
     return data;
   }
-  async function listarAuditoria() {
-    const { data, error } = await sb.from('auditoria').select('acao, alvo, detalhe, criado_em').eq('presbiterio_id', state.perfil.presbiterio_id).order('criado_em', { ascending: false }).limit(60);
+  async function listarAuditoria(limite = 60, acoes = null) {
+    let q = sb.from('auditoria').select('acao, alvo, detalhe, usuario_id, criado_em').eq('presbiterio_id', state.perfil.presbiterio_id).order('criado_em', { ascending: false }).limit(limite);
+    if (acoes) q = q.in('acao', acoes);
+    const { data, error } = await q;
     return error ? [] : data; // tabela só existe depois do 007_cadastro.sql
   }
+
+  // ---------- Cópia de segurança ----------
+  // Tudo o que o presbitério tem no banco (todas as versões e anos), num único objeto
+  async function coletarBackup() {
+    const presb = state.perfil.presbiterio_id;
+    const pegar = async (nome, q) => { const { data, error } = await q; if (error) throw new Error(`${nome}: ${error.message}`); return data; };
+    const opcional = async (q) => { const { data, error } = await q; return error ? [] : data; };
+    const vinculos = await pegar('vínculos', sb.from('vinculos_igreja').select('*').eq('presbiterio_id', presb));
+    const idsIgrejas = [...new Set(vinculos.map((v) => v.igreja_id))];
+    const dados = {
+      sinodos: await pegar('sínodos', sb.from('sinodos').select('*')),
+      presbiterios: await pegar('presbitérios', sb.from('presbiterios').select('*').eq('id', presb)),
+      igrejas: await pegar('igrejas', sb.from('igrejas').select('*').in('id', idsIgrejas)),
+      vinculos_igreja: vinculos,
+      exercicios: await pegar('exercícios', sb.from('exercicios').select('*').eq('presbiterio_id', presb)),
+      exercicio_eventos: await opcional(sb.from('exercicio_eventos').select('*').eq('presbiterio_id', presb)),
+      relatorios: await pegar('relatórios', sb.from('relatorios').select('*').eq('presbiterio_id', presb).order('ano').order('versao')),
+      alertas: await pegar('alertas', sb.from('alertas').select('*, relatorios!inner(presbiterio_id)').eq('relatorios.presbiterio_id', presb)),
+      historico_status: await pegar('histórico', sb.from('historico_status').select('*, relatorios!inner(presbiterio_id)').eq('relatorios.presbiterio_id', presb)),
+      correcoes: await opcional(sb.from('correcoes').select('*, relatorios!inner(presbiterio_id)').eq('relatorios.presbiterio_id', presb)),
+      envios: await opcional(sb.from('envios').select('*').eq('presbiterio_id', presb)),
+      usuarios: await opcional(sb.rpc('listar_usuarios')),
+      convites_pendentes: await opcional(sb.from('convites').select('email, nome, papel, igreja_id, criado_em, expira_em').is('usado_em', null)),
+      auditoria: await opcional(sb.from('auditoria').select('*').eq('presbiterio_id', presb).order('criado_em')),
+    };
+    for (const t of ['alertas', 'historico_status', 'correcoes']) dados[t] = dados[t].map(({ relatorios, ...resto }) => resto);
+    return dados;
+  }
+  const baixarArquivo = async (caminho) => { const { data, error } = await sb.storage.from('relatorios').download(caminho); if (error) throw new Error(error.message); return data; };
+  const registrarBackup = async (detalhe) => { await sb.rpc('registrar_backup', { p_detalhe: detalhe }); }; // não impede o backup se falhar
   async function salvarIgreja(i, novo) {
     const { error } = await sb.rpc('salvar_igreja', { p_novo: novo, p_codigo: i.codigo, p_nome: i.nome, p_tipo: i.tipo, p_cidade: i.cidade || null,
       p_uf: i.uf || null, p_organizacao: i.organizacao || null, p_igreja_mae: i.igreja_mae || null, p_situacao: i.situacao });
@@ -319,7 +351,7 @@ window.Data = (() => {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
-    listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja,
+    listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();

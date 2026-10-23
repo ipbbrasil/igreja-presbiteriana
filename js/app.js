@@ -1247,6 +1247,135 @@
     });
   }
 
+  // ---------- Registro de ações (auditoria) ----------
+  const CAT_AUD = {
+    relatorios: ['Relatórios', ['situacao', 'envio']],
+    usuarios: ['Usuários', ['convite', 'acesso']],
+    cadastro: ['Cadastro', ['cadastro', 'alteracao', 'transferencia']],
+    exercicio: ['Exercício', ['exercicio']],
+    backup: ['Backup', ['backup']],
+  };
+  const ROT_AUD = { situacao: 'Situação', envio: 'Envio', convite: 'Convite', acesso: 'Acesso', cadastro: 'Cadastro', alteracao: 'Alteração', transferencia: 'Transferência', exercicio: 'Exercício', backup: 'Backup' };
+
+  function telaAuditoria() {
+    if (S.modo === 'local') return { title: 'Registro de ações', back: '#/perfil', body: card('', '<p>O registro de ações funciona apenas no site publicado.</p>') };
+    const body = `
+      <p class="nota top">Tudo o que acontece no presbitério fica registrado pelo próprio banco de dados: envios, leituras, validações, pedidos de correção, correções, convites, acessos, cadastro, transferências, fechamento do exercício e cópias de segurança. O registro não pode ser editado nem apagado pelo site.</p>
+      <div class="seg claro" role="group" aria-label="Filtrar por tipo">
+        <button class="on" data-cat="">Tudo</button>${Object.entries(CAT_AUD).map(([k, [l]]) => `<button data-cat="${k}">${l}</button>`).join('')}
+      </div>
+      <label class="busca">${ic('busca')}<input type="search" id="aud-q" placeholder="Buscar igreja, e-mail, pessoa ou texto" autocomplete="off"></label>
+      <section class="card"><div id="aud-l"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>
+      <button class="btn" id="aud-xlsx">${ic('baixar')}Baixar registro (Excel)</button>`;
+    return {
+      title: 'Registro de ações', sub: esc(S.presbiterio?.nome || ''), back: '#/perfil', body,
+      after: async () => {
+        const [lista, usuarios] = await Promise.all([Data.listarAuditoria(500), Data.listarUsuarios().catch(() => [])]);
+        const quem = Object.fromEntries(usuarios.map((u) => [u.user_id, u.nome || u.email]));
+        const linhas = lista.map((a) => ({ ...a, pessoa: a.usuario_id ? (quem[a.usuario_id] || 'usuário removido') : 'sistema' }));
+        let cat = '';
+        const desenhar = () => {
+          const q = document.getElementById('aud-q').value.trim().toLowerCase();
+          const acoes = cat ? CAT_AUD[cat][1] : null;
+          const vis = linhas.filter((a) => (!acoes || acoes.includes(a.acao)) && (!q || `${a.alvo} ${a.detalhe} ${a.pessoa}`.toLowerCase().includes(q)));
+          document.getElementById('aud-l').innerHTML = vis.length ? `<ul class="hist">${vis.map((a) => `<li><span class="chip neutral"><b aria-hidden="true">•</b>${ROT_AUD[a.acao] || esc(a.acao)}</span>
+              <div><strong>${esc(a.alvo || '')}</strong> ${esc(a.detalhe || '')}<small>${fmt.dataHora(a.criado_em)} · por ${esc(a.pessoa)}</small></div></li>`).join('')}</ul>`
+            : '<p class="vazio">Nenhuma ação encontrada.</p>';
+        };
+        $app.querySelectorAll('[data-cat]').forEach((b) => b.addEventListener('click', () => {
+          cat = b.dataset.cat; $app.querySelectorAll('[data-cat]').forEach((x) => x.classList.toggle('on', x === b)); desenhar();
+        }));
+        document.getElementById('aud-q').addEventListener('input', desenhar);
+        desenhar();
+        document.getElementById('aud-xlsx').addEventListener('click', async () => {
+          await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+          const X = window.XLSX;
+          const ws = X.utils.aoa_to_sheet([['Data e hora', 'Tipo', 'Alvo', 'Detalhe', 'Feito por'],
+            ...linhas.map((a) => [new Date(a.criado_em).toLocaleString('pt-BR'), ROT_AUD[a.acao] || a.acao, a.alvo || '', a.detalhe || '', a.pessoa])]);
+          ws['!cols'] = [18, 14, 30, 90, 28].map((wch) => ({ wch }));
+          const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Registro');
+          X.writeFile(wb, `registro-acoes-${S.presbiterio?.sigla || ''}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+        });
+      },
+    };
+  }
+
+  // ---------- Cópia de segurança ----------
+  function telaBackup() {
+    if (S.modo === 'local') return { title: 'Cópia de segurança', back: '#/perfil', body: card('', '<p>A cópia de segurança funciona apenas no site publicado.</p>') };
+    const body = `
+      ${card('Por que fazer', `<p>O plano gratuito do Supabase não guarda cópias de segurança que possam ser restauradas. Por isso o presbitério deve baixar e guardar a sua própria cópia, fora do Supabase.</p>
+        <ul class="passos">
+          <li><strong>Quando:</strong> uma vez por mês durante o recebimento e <strong>sempre depois de fechar o exercício</strong>.</li>
+          <li><strong>Onde guardar:</strong> em dois lugares diferentes (ex.: computador da secretaria e um drive da igreja), com acesso restrito.</li>
+          <li><strong>Atenção:</strong> a cópia contém dados dos relatórios e os e-mails dos usuários. Trate como documento confidencial (LGPD).</li>
+        </ul>`)}
+      ${card('Baixar cópia', `<div class="btns">
+          <button class="btn primary" data-backup="json">${ic('baixar')}Dados (JSON)</button>
+          <button class="btn" data-backup="zip">${ic('baixar')}Dados + arquivos originais (ZIP)</button>
+        </div><div id="bk-st" class="nota"></div>`, { sub: 'Todas as tabelas do presbitério, todos os anos e todas as versões dos relatórios (inclusive as substituídas), correções, histórico, envios, usuários e registro de ações' })}
+      ${card('Como recuperar', `<ul class="passos">
+          <li>O arquivo JSON tem uma seção por tabela do banco, com os mesmos nomes de colunas — pode ser reimportado pelo responsável técnico no Supabase (Table Editor → Import, ou SQL).</li>
+          <li>O ZIP traz também os PDFs e planilhas originais, na mesma organização de pastas do armazenamento (código da igreja / ano / arquivo).</li>
+          <li>As estatísticas podem ser reconstruídas só a partir dos relatórios: cada valor guarda a origem no documento.</li>
+        </ul>`)}
+      <section class="card"><header class="card-h"><h2>Cópias anteriores</h2></header><div id="bk-h"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>`;
+    return {
+      title: 'Cópia de segurança', sub: esc(S.presbiterio?.nome || ''), back: '#/perfil', body,
+      after: async () => {
+        const historico = async () => {
+          const l = await Data.listarAuditoria(20, ['backup']);
+          const el = document.getElementById('bk-h');
+          if (el) el.innerHTML = l.length ? `<ul class="hist">${l.map((a) => `<li><span class="chip good"><b aria-hidden="true">✓</b>Backup</span><div>${esc(a.detalhe || '')}<small>${fmt.dataHora(a.criado_em)}</small></div></li>`).join('')}</ul>`
+            : '<p class="vazio">Nenhuma cópia registrada ainda.</p>';
+        };
+        historico();
+        $app.querySelectorAll('[data-backup]').forEach((b) => b.addEventListener('click', async () => {
+          const st = document.getElementById('bk-st'), html = b.innerHTML;
+          $app.querySelectorAll('[data-backup]').forEach((x) => { x.disabled = true; });
+          b.innerHTML = '<span class="spin"></span>Preparando…';
+          try {
+            st.textContent = 'Lendo as tabelas…';
+            const dados = await Data.coletarBackup();
+            const contagem = Object.fromEntries(Object.entries(dados).map(([k, v]) => [k, v.length]));
+            const pacote = { sistema: 'Estatística IPB', versao: 1, gerado_em: new Date().toISOString(), gerado_por: S.usuario.email,
+              presbiterio: S.presbiterio, sinodo: S.sinodo, contagem, tabelas: dados };
+            const json = JSON.stringify(pacote, null, 1);
+            const nome = `backup-${S.presbiterio?.sigla || 'presbiterio'}-${new Date().toISOString().slice(0, 10)}`;
+            let resumo = `${dados.relatorios.length} relatórios (todas as versões), ${dados.igrejas.length} igrejas, ${dados.auditoria.length} registros de ações`;
+            if (b.dataset.backup === 'zip') {
+              await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+              const zip = new window.JSZip();
+              zip.file(`${nome}.json`, json);
+              let ok = 0, falhas = 0;
+              for (const [i, e] of dados.envios.entries()) {
+                st.textContent = `Baixando arquivos originais… ${i + 1} de ${dados.envios.length}`;
+                try { zip.file(`arquivos/${e.caminho}`, await Data.baixarArquivo(e.caminho)); ok++; } catch (err) { falhas++; }
+              }
+              st.textContent = 'Compactando…';
+              const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+              baixarBlob(blob, `${nome}.zip`);
+              resumo += ` e ${ok} arquivo(s) original(is)${falhas ? ` (${falhas} não baixado(s))` : ''} — ZIP`;
+            } else {
+              baixarBlob(new Blob([json], { type: 'application/json' }), `${nome}.json`);
+              resumo += ' — JSON';
+            }
+            await Data.registrarBackup(resumo).catch(() => {});
+            st.textContent = `Cópia gerada: ${resumo}. Guarde o arquivo em local seguro.`;
+            historico();
+          } catch (err) { st.textContent = 'Não foi possível gerar a cópia: ' + err.message; }
+          $app.querySelectorAll('[data-backup]').forEach((x) => { x.disabled = false; });
+          b.innerHTML = html;
+        }));
+      },
+    };
+  }
+  function baixarBlob(blob, nome) {
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
   // ---------- Usuários e convites ----------
   const PAPEL_CONVITE = { representante: 'Representante de igreja', admin_presbiterial: 'Administrador do presbitério' };
   const linkConvite = (codigo) => `${location.origin}${location.pathname}#/convite/${codigo}`;
@@ -1388,7 +1517,11 @@
           ${S.perfil.papel === 'admin_presbiterial' ? `<a class="item" href="#/usuarios">
             <div class="item-m"><strong>Usuários e convites</strong><span class="muted">Convidar representantes e administradores, remover acessos</span></div>${ic('seta', 'chev')}</a>
           <a class="item" href="#/cadastro">
-            <div class="item-m"><strong>Cadastro de igrejas</strong><span class="muted">Igrejas, congregações, transferências de presbitério</span></div>${ic('seta', 'chev')}</a>` : ''}
+            <div class="item-m"><strong>Cadastro de igrejas</strong><span class="muted">Igrejas, congregações, transferências de presbitério</span></div>${ic('seta', 'chev')}</a>
+          <a class="item" href="#/auditoria">
+            <div class="item-m"><strong>Registro de ações</strong><span class="muted">Quem fez o quê e quando: envios, validações, acessos, cadastro</span></div>${ic('seta', 'chev')}</a>
+          <a class="item" href="#/backup">
+            <div class="item-m"><strong>Cópia de segurança</strong><span class="muted">Baixar todos os dados e arquivos do presbitério</span></div>${ic('seta', 'chev')}</a>` : ''}
           <a class="item" href="#/ajuda">
             <div class="item-m"><strong>Ajuda</strong><span class="muted">Tudo o que o aplicativo faz, passo a passo e configurações</span></div>${ic('seta', 'chev')}</a>
           <a class="item" href="#/dicionario">
@@ -1463,6 +1596,10 @@
       case 'ajuda':
         return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');
       case 'dicionario': return render(telaDicionario(), 'perfil');
+      case 'auditoria':
+      case 'backup':
+        if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/perfil'); return; }
+        return render(p0 === 'auditoria' ? telaAuditoria() : telaBackup(), 'perfil');
       case 'cadastro':
         if (S.perfil.papel !== 'admin_presbiterial') { location.replace('#/igrejas'); return; }
         return render(telaCadastro(), 'igrejas');

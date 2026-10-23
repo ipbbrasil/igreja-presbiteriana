@@ -211,6 +211,22 @@ window.Ajuda = (() => {
       <p class="nota">Novos sínodos e presbitérios são cadastrados pelo responsável técnico.</p>`,
     },
     {
+      id: 'registro', titulo: 'Registro de ações e cópia de segurança', para: ['admin'], html: `
+      <h4>Registro de ações (Perfil → Registro de ações)</h4>
+      <ul>
+        <li>O próprio banco de dados registra automaticamente: <strong>envios</strong> de arquivo, <strong>leituras</strong>, <strong>validações</strong>, <strong>pedidos de correção</strong>, <strong>correções</strong>, <strong>convites</strong>, <strong>acessos</strong> concedidos ou removidos, <strong>cadastro</strong> e <strong>transferências</strong>, <strong>fechamento/reabertura</strong> do exercício e <strong>cópias de segurança</strong>.</li>
+        <li>Cada linha mostra data e hora, o que foi feito, sobre o quê e por quem (“sistema” quando feito direto no banco pelo responsável técnico).</li>
+        <li>Filtros por tipo, busca por texto e download em Excel. O registro não pode ser editado nem apagado pelo site.</li>
+      </ul>
+      <h4>Cópia de segurança (Perfil → Cópia de segurança)</h4>
+      <ul>
+        <li><strong>Dados (JSON):</strong> todas as tabelas do presbitério, todos os anos e todas as versões dos relatórios, correções, histórico, envios, usuários e registro de ações.</li>
+        <li><strong>Dados + arquivos originais (ZIP):</strong> o mesmo, mais os PDFs e planilhas enviados.</li>
+        <li><strong>Política recomendada:</strong> uma cópia por mês durante o recebimento e sempre depois de fechar o exercício, guardada em dois lugares diferentes com acesso restrito. A cópia contém e-mails de usuários: trate como confidencial (LGPD).</li>
+        <li>Cada cópia gerada fica registrada (quando e o que continha).</li>
+      </ul>`,
+    },
+    {
       id: 'sinodo', titulo: 'Visão do sínodo', para: ['admin'], html: `
       <p>Mostra os presbitérios cadastrados e os totais do sínodo, somente com relatórios validados. Enquanto apenas um presbitério estiver na plataforma, os números aparecem marcados como <strong>parciais</strong>.</p>`,
     },
