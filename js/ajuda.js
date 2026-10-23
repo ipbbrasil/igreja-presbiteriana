@@ -210,7 +210,19 @@ window.Ajuda = (() => {
         <li><strong>Transferir:</strong> passa a igreja para outro presbitério a partir de uma data, com o motivo ou ato que aprovou. Os relatórios já existentes continuam ligados ao presbitério da época; as congregações da igreja vão junto.</li>
         <li><strong>Registro de alterações:</strong> todo cadastro, alteração e transferência fica registrado com data e detalhes (antes → depois).</li>
       </ul>
-      <p class="nota">Novos sínodos e presbitérios são cadastrados pelo responsável técnico.</p>`,
+      <p class="nota">Novos sínodos e presbitérios são cadastrados pelo superadministrador (veja “Estrutura conciliar”).</p>`,
+    },
+    {
+      id: 'estrutura', titulo: 'Estrutura conciliar: sínodos e presbitérios', para: ['tec'], html: `
+      <p>Exclusivo do <strong>superadministrador</strong>, no menu <strong>Estrutura</strong>. O superadministrador vê a visão nacional e a estrutura, mas não as telas internas de um presbitério.</p>
+      <ul>
+        <li><strong>Novo sínodo / novo presbitério:</strong> sigla única, nome oficial e situação. Todo presbitério pertence a um sínodo.</li>
+        <li><strong>Editar:</strong> nome e situação (ativo/inativo). As siglas não mudam, para preservar o histórico. Nada é apagado.</li>
+        <li><strong>Mudar de sínodo:</strong> registra a data e o motivo. Os exercícios anteriores continuam somados ao sínodo da época na visão nacional.</li>
+        <li><strong>Convidar administrador:</strong> gera o link de convite do administrador do presbitério, que depois cadastra as igrejas e convida os representantes.</li>
+        <li>Todas as alterações ficam no registro da estrutura.</li>
+      </ul>
+      <p class="nota">O primeiro superadministrador é definido pelo responsável técnico no banco de dados.</p>`,
     },
     {
       id: 'registro', titulo: 'Registro de ações e cópia de segurança', para: ['admin'], html: `

@@ -194,6 +194,13 @@
         { id: 'perfil', href: '#/perfil', label: 'Perfil', icon: 'perfil' },
       ];
     }
+    if (p === 'superadmin' || p === 'admin_nacional') {
+      return [
+        { id: 'nacional', href: '#/nacional', label: 'Nacional', icon: 'home' },
+        ...(p === 'superadmin' ? [{ id: 'estrutura', href: '#/estrutura', label: 'Estrutura', icon: 'sinodo' }] : []),
+        { id: 'perfil', href: '#/perfil', label: 'Perfil', icon: 'perfil' },
+      ];
+    }
     const base = [
       { id: 'inicio', href: '#/', label: 'Presbitério', icon: 'home' },
       { id: 'igrejas', href: '#/igrejas', label: 'Igrejas', icon: 'igrejas' },
@@ -1289,6 +1296,103 @@
     };
   }
 
+  // Data de hoje no fuso do aparelho (toISOString usa UTC e, à noite no Brasil, já seria amanhã)
+  const hojeLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+  // ---------- Estrutura conciliar (superadministrador): sínodos e presbitérios ----------
+  function telaEstrutura() {
+    if (S.modo === 'local') return { title: 'Estrutura', body: card('', '<p>O cadastro de sínodos e presbitérios funciona apenas no site publicado.</p>') };
+    return {
+      title: 'Estrutura conciliar', sub: 'Sínodos e presbitérios',
+      body: `<p class="nota top">Cadastro dos concílios que usam a plataforma. Cada presbitério pertence a um sínodo; a mudança de sínodo é registrada com data, sem alterar os anos anteriores. Sínodos e presbitérios não são apagados, apenas inativados.</p>
+        <div class="btns"><button class="btn primary" id="est-sin">+ Novo sínodo</button><button class="btn" id="est-presb">+ Novo presbitério</button></div>
+        <div id="est"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div>`,
+      after: () => carregarEstrutura(),
+    };
+  }
+
+  async function carregarEstrutura() {
+    const el = document.getElementById('est');
+    let e;
+    try { e = await Data.listarEstrutura(); } catch (err) { el.innerHTML = card('', `<p class="erro">${esc(err.message)}</p>`); return; }
+    const flag = (s) => (s === 'inativo' ? '<span class="flag">inativo</span>' : '<span class="flag ok">ativo</span>');
+    const historico = (p) => e.vinculos.filter((v) => v.presbiterio_id === p.id && v.inicio > '1900-01-01')
+      .map((v) => `${esc(v.sinodos?.sigla || '')} desde ${fmt.data(v.inicio)}${v.fim ? ` até ${fmt.data(v.fim)}` : ''}`).join(' · ');
+    el.innerHTML = e.sinodos.map((s) => {
+      const ps = e.presbiterios.filter((p) => p.sinodo_id === s.id);
+      return card(`${esc(s.nome)} <small class="muted">${esc(s.sigla)}</small>`, `
+        <div class="item-s">${flag(s.situacao)}<span class="flag">${ps.length} presbitério(s)</span></div>
+        <div class="btns"><button class="btn" data-ed-sin="${esc(s.sigla)}">Editar sínodo</button></div>
+        ${ps.length ? `<ul class="envios">${ps.map((p) => `<li><div class="env-m"><strong>${esc(p.nome)}</strong>
+            <span class="muted small">${esc(p.sigla)} · ${e.igrejas[p.id] || 0} igreja(s) vinculada(s)${historico(p) ? ` · vínculos: ${historico(p)}` : ''}</span>
+            <div class="item-s">${flag(p.situacao)}</div>
+            <div class="btns"><button class="btn" data-ed-presb="${esc(p.sigla)}">Editar</button><button class="btn" data-mov-presb="${esc(p.sigla)}">Mudar de sínodo</button><button class="btn" data-adm-presb="${esc(p.sigla)}">Convidar administrador</button></div>
+          </div></li>`).join('')}</ul>` : '<p class="vazio">Nenhum presbitério neste sínodo.</p>'}`);
+    }).join('') + card('Registro de alterações da estrutura', e.auditoria.length
+      ? `<ul class="hist">${e.auditoria.map((a) => `<li><span class="chip neutral"><b aria-hidden="true">•</b>Estrutura</span><div><strong>${esc(a.alvo || '')}</strong> ${esc(a.detalhe || '')}<small>${fmt.dataHora(a.criado_em)}</small></div></li>`).join('')}</ul>`
+      : '<p class="vazio">Nenhuma alteração registrada ainda.</p>');
+
+    const sinodoPor = (sg) => e.sinodos.find((s) => s.sigla === sg);
+    const presbPor = (sg) => e.presbiterios.find((p) => p.sigla === sg);
+    const opcoesSinodo = (atual) => e.sinodos.filter((s) => s.situacao === 'ativo').map((s) => `<option value="${esc(s.sigla)}"${s.sigla === atual ? ' selected' : ''}>${esc(s.nome)} (${esc(s.sigla)})</option>`).join('');
+    const enviar = (form, acao, msg) => form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const f = Object.fromEntries(new FormData(form));
+      const btn = form.querySelector('button[type=submit]'); btn.disabled = true;
+      try { const r = await acao(f); if (r !== 'manter') { fecharPainel(); toast(msg); carregarEstrutura(); } } catch (err) { toast(err.message); btn.disabled = false; }
+    });
+    const formSinodo = (s) => {
+      const el2 = abrirPainel(s ? `Editar ${esc(s.nome)}` : 'Novo sínodo', `<form class="campos conv">
+          <label class="lbl">Sigla<input type="text" name="sigla" value="${esc(s?.sigla || '')}" ${s ? 'readonly' : 'required placeholder="Ex.: STG"'} maxlength="12" autocapitalize="characters"></label>
+          <label class="lbl">Nome oficial<input type="text" name="nome" value="${esc(s?.nome || '')}" required placeholder="Ex.: Sínodo de Taguatinga"></label>
+          <label class="lbl">Situação<select name="situacao"><option value="ativo">Ativo</option><option value="inativo"${s?.situacao === 'inativo' ? ' selected' : ''}>Inativo</option></select></label>
+          <button class="btn primary" type="submit">${s ? 'Salvar' : 'Cadastrar'}</button></form>`);
+      enviar(el2.querySelector('form'), (f) => Data.salvarSinodo(f, !s), s ? 'Sínodo atualizado.' : 'Sínodo cadastrado.');
+    };
+    const formPresb = (p) => {
+      const sin = p ? e.sinodos.find((s) => s.id === p.sinodo_id) : null;
+      const el2 = abrirPainel(p ? `Editar ${esc(p.nome)}` : 'Novo presbitério', `<form class="campos conv">
+          <label class="lbl">Sigla<input type="text" name="sigla" value="${esc(p?.sigla || '')}" ${p ? 'readonly' : 'required placeholder="Ex.: PTAN"'} maxlength="12" autocapitalize="characters"></label>
+          <label class="lbl">Nome oficial<input type="text" name="nome" value="${esc(p?.nome || '')}" required placeholder="Ex.: Presbitério de Taguatinga Norte"></label>
+          ${p ? `<label class="lbl">Sínodo<input type="text" value="${esc(sin?.nome || '')}" readonly></label>` : `<label class="lbl">Sínodo<select name="sinodo" required><option value="">Selecione…</option>${opcoesSinodo()}</select></label>`}
+          <label class="lbl">Situação<select name="situacao"><option value="ativo">Ativo</option><option value="inativo"${p?.situacao === 'inativo' ? ' selected' : ''}>Inativo</option></select></label>
+          <button class="btn primary" type="submit">${p ? 'Salvar' : 'Cadastrar'}</button></form>
+        ${p ? '<p class="nota">Para mudar o sínodo, use “Mudar de sínodo” (fica registrado com data).</p>' : ''}`);
+      enviar(el2.querySelector('form'), (f) => Data.salvarPresbiterio(f, !p), p ? 'Presbitério atualizado.' : 'Presbitério cadastrado.');
+    };
+    const formMover = (p) => {
+      const atual = e.sinodos.find((s) => s.id === p.sinodo_id);
+      const el2 = abrirPainel(`Mudar ${esc(p.nome)} de sínodo`, `<p>Hoje pertence ao <strong>${esc(atual?.nome || '')}</strong>. A partir da data informada passa ao novo sínodo; os exercícios anteriores continuam somados ao sínodo da época.</p>
+        <form class="campos conv"><input type="hidden" name="sigla" value="${esc(p.sigla)}">
+          <label class="lbl">Novo sínodo<select name="sinodo" required><option value="">Selecione…</option>${opcoesSinodo().replace(`value="${atual?.sigla}"`, `value="${atual?.sigla}" disabled`)}</select></label>
+          <label class="lbl">Data<input type="date" name="data" value="${hojeLocal()}" required></label>
+          <label class="lbl">Motivo / ato que aprovou (obrigatório)<textarea name="motivo" rows="2" required placeholder="Ex.: resolução do Supremo Concílio"></textarea></label>
+          <button class="btn danger" type="submit">Confirmar mudança</button></form>`);
+      enviar(el2.querySelector('form'), (f) => Data.moverPresbiterio({ ...f, motivo: f.motivo.trim() }), 'Mudança de sínodo registrada.');
+    };
+    const formAdmin = (p) => {
+      const el2 = abrirPainel(`Administrador do ${esc(p.nome)}`, `<p>O administrador do presbitério cadastra as igrejas, convida os representantes e valida os relatórios.</p>
+        <form class="campos conv"><input type="hidden" name="presbiterio" value="${esc(p.sigla)}">
+          <label class="lbl">Nome<input type="text" name="nome" placeholder="Ex.: Pb. João da Silva"></label>
+          <label class="lbl">E-mail<input type="email" name="email" required autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+          <button class="btn primary" type="submit">Criar convite</button></form><div id="adm-ok"></div>`);
+      enviar(el2.querySelector('form'), async (f) => {
+        const codigo = await Data.convidarAdmin(f);
+        const cv = { ...f, email: f.email.trim().toLowerCase(), codigo, papel: 'admin_presbiterial' };
+        el2.querySelector('#adm-ok').innerHTML = `<div class="banner info conv-ok" role="status"><b>✓</b><div><strong>Convite criado para ${esc(cv.email)}.</strong> Envie o link:
+          <code class="link">${esc(linkConvite(codigo))}</code><div class="btns">${botoesConvite({ ...cv, igreja: null, presbSigla: p.sigla })}</div></div></div>`;
+        el2.querySelector('form button[type=submit]').disabled = false;
+        return 'manter';
+      }, '');
+    };
+    document.getElementById('est-sin').onclick = () => formSinodo(null);
+    document.getElementById('est-presb').onclick = () => formPresb(null);
+    el.querySelectorAll('[data-ed-sin]').forEach((b) => { b.onclick = () => formSinodo(sinodoPor(b.dataset.edSin)); });
+    el.querySelectorAll('[data-ed-presb]').forEach((b) => { b.onclick = () => formPresb(presbPor(b.dataset.edPresb)); });
+    el.querySelectorAll('[data-mov-presb]').forEach((b) => { b.onclick = () => formMover(presbPor(b.dataset.movPresb)); });
+    el.querySelectorAll('[data-adm-presb]').forEach((b) => { b.onclick = () => formAdmin(presbPor(b.dataset.admPresb)); });
+  }
+
   // ---------- Cadastro institucional ----------
   const tipoUnidade = (i, porId) => (i.tipo === 'congregacao'
     ? (i.igreja_mae_id ? `Congregação de ${nomeCurto(porId[i.igreja_mae_id]?.nome || '—')}` : 'Congregação presbiterial')
@@ -1361,7 +1465,7 @@
     const el = abrirPainel(`Transferir ${esc(i.nome)}`, '<div class="carregando dark"><span class="spin"></span>Carregando presbitérios…</div>');
     let presbs = [];
     try { presbs = (await Data.listarPresbiterios()).filter((p) => p.sigla !== S.presbiterio?.sigla); } catch (e) { /* lista vazia */ }
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = hojeLocal();
     el.querySelector('.sheet-c').innerHTML = presbs.length ? `
       <p>A igreja passa para outro presbitério a partir da data informada. <strong>Os relatórios já existentes continuam ligados a este presbitério</strong> (jurisdição de cada exercício); os próximos irão para o novo.${S.cadastradas.some((c) => c.igreja_mae_id === i.id) ? ' As congregações desta igreja vão junto.' : ''}</p>
       <form id="f-tr" class="campos conv">
@@ -1428,7 +1532,7 @@
             ...linhas.map((a) => [new Date(a.criado_em).toLocaleString('pt-BR'), ROT_AUD[a.acao] || a.acao, a.alvo || '', a.detalhe || '', a.pessoa])]);
           ws['!cols'] = [18, 14, 30, 90, 28].map((wch) => ({ wch }));
           const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Registro');
-          X.writeFile(wb, `registro-acoes-${S.presbiterio?.sigla || ''}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+          X.writeFile(wb, `registro-acoes-${S.presbiterio?.sigla || ''}-${hojeLocal()}.xlsx`);
         });
       },
     };
@@ -1475,7 +1579,7 @@
             const pacote = { sistema: 'Estatística IPB', versao: 1, gerado_em: new Date().toISOString(), gerado_por: S.usuario.email,
               presbiterio: S.presbiterio, sinodo: S.sinodo, contagem, tabelas: dados };
             const json = JSON.stringify(pacote, null, 1);
-            const nome = `backup-${S.presbiterio?.sigla || 'presbiterio'}-${new Date().toISOString().slice(0, 10)}`;
+            const nome = `backup-${S.presbiterio?.sigla || 'presbiterio'}-${hojeLocal()}`;
             let resumo = `${dados.relatorios.length} relatórios (todas as versões), ${dados.igrejas.length} igrejas, ${dados.auditoria.length} registros de ações`;
             if (b.dataset.backup === 'zip') {
               await Envio.carregarScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
@@ -1513,7 +1617,7 @@
   // ---------- Usuários e convites ----------
   const PAPEL_CONVITE = { representante: 'Representante de igreja', admin_presbiterial: 'Administrador do presbitério' };
   const linkConvite = (codigo) => `${location.origin}${location.pathname}#/convite/${codigo}`;
-  const textoConvite = (c) => `Olá${c.nome ? `, ${c.nome}` : ''}! Você recebeu um convite para acessar o sistema de estatística da Igreja Presbiteriana do Brasil (${S.presbiterio?.sigla || ''}) como ${(PAPEL_CONVITE[c.papel] || '').toLowerCase()}${c.igreja ? ` da ${c.igreja}` : ''}. Abra o link para criar sua senha: ${linkConvite(c.codigo)}`;
+  const textoConvite = (c) => `Olá${c.nome ? `, ${c.nome}` : ''}! Você recebeu um convite para acessar o sistema de estatística da Igreja Presbiteriana do Brasil (${c.presbSigla || S.presbiterio?.sigla || ''}) como ${(PAPEL_CONVITE[c.papel] || '').toLowerCase()}${c.igreja ? ` da ${c.igreja}` : ''}. Abra o link para criar sua senha: ${linkConvite(c.codigo)}`;
   const botoesConvite = (c) => `<button class="btn" data-copiar="${esc(linkConvite(c.codigo))}">Copiar link</button>
     <a class="btn" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(textoConvite(c))}">WhatsApp</a>`;
   async function copiar(txt) {
@@ -1581,8 +1685,7 @@
           btn.disabled = false; btn.textContent = 'Criar convite';
         });
         $app.querySelector('.content').addEventListener('click', async (e) => {
-          const cp = e.target.closest('[data-copiar]'), ca = e.target.closest('[data-cancelar]'), rm = e.target.closest('[data-remover]');
-          if (cp) copiar(cp.dataset.copiar);
+          const ca = e.target.closest('[data-cancelar]'), rm = e.target.closest('[data-remover]');
           if (ca) { try { await Data.cancelarConvite(ca.dataset.cancelar); toast('Convite cancelado.'); carregarListas(); } catch (err) { toast(err.message); } }
           if (rm && window.confirm(`Remover o acesso de ${rm.dataset.nome}? A pessoa não verá mais nenhum dado.`)) {
             try { await Data.removerAcesso(rm.dataset.remover); toast('Acesso removido.'); carregarListas(); } catch (err) { toast(err.message); }
@@ -1714,8 +1817,13 @@
     const rep = S.perfil.papel === 'representante';
     if (rep && !(p0 === 'igreja' || p0 === 'perfil' || p0 === 'enviar' || p0 === 'ajuda' || p0 === 'dicionario' || p0 === 'privacidade')) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
     if (p0 === 'igreja' && rep && p1 !== S.perfil.igreja_codigo) { location.replace(`#/igreja/${S.perfil.igreja_codigo}`); return; }
+    const nacional = S.perfil.papel === 'superadmin' || S.perfil.papel === 'admin_nacional';
+    if (nacional && ['', 'igrejas', 'pendencias', 'cadastro', 'usuarios', 'auditoria', 'backup'].includes(p0)) { location.replace('#/nacional'); return; }
     switch (p0) {
       case '': return render(telaPresbiterio(), 'inicio');
+      case 'estrutura':
+        if (S.perfil.papel !== 'superadmin') { location.replace('#/'); return; }
+        return render(telaEstrutura(), 'estrutura');
       case 'igrejas': return render(telaIgrejas(), 'igrejas');
       case 'igreja': return render(telaIgreja(p1, p2), rep ? 'igreja' : 'igrejas');
       case 'pendencias': return render(telaPendencias(), 'pendencias');
@@ -1731,7 +1839,7 @@
         return render(telaEditar({ envio }), 'pendencias');
       }
       case 'sinodo': return render(telaSinodo(p1), 'sinodo');
-      case 'nacional': return render(telaNacional(), 'sinodo');
+      case 'nacional': return render(telaNacional(), nacional ? 'nacional' : 'sinodo');
       case 'perfil': return render(telaPerfil(), 'perfil');
       case 'ajuda':
         return render({ title: 'Ajuda', sub: 'Como usar o sistema', body: Ajuda.html(S.perfil.papel), after: () => Ajuda.ligar($app) }, 'ajuda');
@@ -1761,6 +1869,8 @@
     const janela = window.open('', '_blank');
     try { janela.location = await Data.urlArquivo(b.dataset.baixar); } catch (err) { janela?.close(); toast('Não foi possível abrir o arquivo: ' + err.message); }
   });
+  // Copiar link de convite (vale também dentro dos painéis)
+  document.addEventListener('click', (e) => { const b = e.target.closest('[data-copiar]'); if (b) copiar(b.dataset.copiar); });
   // Ler agora: lê os números de um arquivo recebido e cria a versão para conferência
   document.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-ler]');

@@ -153,6 +153,25 @@ window.Data = (() => {
     return { linhas: Object.values(porUf), estrutura: [{ sinodo_sigla: s.sigla, sinodo_nome: s.nome, presbiterio_sigla: p.sigla, presbiterio_nome: p.nome }] };
   }
 
+  // ---------- Estrutura conciliar: sínodos e presbitérios (superadministrador) ----------
+  async function listarEstrutura() {
+    const [s, p, vi, vp, au] = await Promise.all([
+      sb.from('sinodos').select('id, nome, sigla, situacao').order('nome'),
+      sb.from('presbiterios').select('id, nome, sigla, situacao, sinodo_id').order('nome'),
+      sb.from('vinculos_igreja').select('presbiterio_id').is('fim', null),
+      sb.from('vinculos_presbiterio').select('presbiterio_id, inicio, fim, sinodos(sigla)').order('inicio'),
+      sb.from('auditoria').select('acao, alvo, detalhe, criado_em').eq('acao', 'estrutura').order('criado_em', { ascending: false }).limit(40),
+    ]);
+    if (s.error || p.error) throw new Error((s.error || p.error).message);
+    const igrejas = {};
+    for (const v of vi.data || []) igrejas[v.presbiterio_id] = (igrejas[v.presbiterio_id] || 0) + 1;
+    return { sinodos: s.data, presbiterios: p.data, igrejas, vinculos: vp.error ? [] : vp.data, auditoria: au.error ? [] : au.data };
+  }
+  const salvarSinodo = (x, novo) => rpc('salvar_sinodo', { p_novo: novo, p_sigla: x.sigla, p_nome: x.nome, p_situacao: x.situacao });
+  const salvarPresbiterio = (x, novo) => rpc('salvar_presbiterio', { p_novo: novo, p_sigla: x.sigla, p_nome: x.nome, p_sinodo: x.sinodo || null, p_situacao: x.situacao });
+  const moverPresbiterio = (x) => rpc('mover_presbiterio', { p_sigla: x.sigla, p_sinodo: x.sinodo, p_data: x.data, p_motivo: x.motivo });
+  const convidarAdmin = (x) => rpc('criar_convite_admin', { p_email: x.email, p_nome: x.nome || null, p_presbiterio: x.presbiterio });
+
   // ---------- Cadastro institucional ----------
   async function listarPresbiterios() {
     const { data, error } = await sb.from('presbiterios').select('id, nome, sigla, sinodos(sigla)').order('nome');
@@ -383,7 +402,7 @@ window.Data = (() => {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
-    painelNacional, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
+    painelNacional, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
   };
 })();
