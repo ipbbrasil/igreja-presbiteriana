@@ -75,6 +75,7 @@ window.Ajuda = (() => {
         <li><strong>Variações relevantes no ano:</strong> compara o ano anterior com o atual (comungantes, não comungantes, rol e alunos da Escola Dominical) e lista as mudanças acima do limite escolhido (padrão 15% e pelo menos 5 pessoas; ajustável de 10% a 30%). Cada uma vem classificada: <em>alta/queda real</em> (a movimentação de admissões e demissões explica), <em>informada</em> (não há movimentação para conferir) ou <em>verificar dado</em> (a mudança não bate com o que foi registrado — provável erro).</li>
         <li><strong>Gráficos por igreja:</strong> comungantes e receita. Toque em uma igreja para abrir a página dela.</li>
         <li><strong>Movimentação de comungantes:</strong> admissões e demissões por tipo e o saldo do período.</li>
+        <li><strong>Mapa por UF:</strong> mapa esquemático com os estados onde estão as igrejas do presbitério — rol de membros (relatórios validados), igrejas cadastradas ou % de relatórios validados. Toque em um estado para ver os números.</li>
         <li><strong>Composição das despesas</strong>, <strong>Liderança formal</strong> e <strong>Vida ministerial</strong> (Santa Ceia, evangelização, visitas… — dos relatórios enviados em Excel).</li>
         <li><strong>Exportar:</strong> planilha Excel e resumo em PDF (veja “Exportação”).</li>
       </ul>`,

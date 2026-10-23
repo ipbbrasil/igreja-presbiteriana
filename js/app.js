@@ -442,6 +442,12 @@
         ${card('Composição das despesas realizadas', Charts.composicao(compo, { fmt: fmt.brlCurto, rotuloTotal: 'Total das despesas' }))}
       </div>
 
+      ${cardMapa([...todos.map((r) => ({ r, uf: r.igreja.uf })), ...faltam.map((i) => ({ r: null, uf: i.uf }))].map(({ r, uf }) => {
+        // Uma linha por igreja, no mesmo formato dos totais por UF das visões do sínodo e nacional
+        const val = r?.status === 'validado', rolV = val ? T(r.dados.rol_atual) : null;
+        return { uf: uf || '—', igrejas: 1, recebidos: r ? 1 : 0, validados: val ? 1 : 0, rol: rolV, n_rol: rolV != null ? 1 : 0 };
+      }))}
+
       ${card('Liderança formal', `<div class="mini">${Regras.LIDERANCA.map(([k, l]) => { const c = lid(k); return `<div><strong>${fmt.int(c.total)}</strong><span>${l}</span></div>`; }).join('')}</div>`)}
 
       ${(() => {
