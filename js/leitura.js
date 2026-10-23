@@ -17,13 +17,23 @@ window.Leitura = (() => {
     return neg ? -v : v;
   }
 
-  // Agrupa os textos das páginas em linhas (mesma altura), da esquerda para a direita
-  async function linhas(doc) {
-    const out = [];
+  // Textos de cada página do PDF digital: { x, y, w, h, s } em coordenadas do PDF (y para cima)
+  async function itensPdf(doc) {
+    const paginas = [];
     for (let p = 1; p <= Math.min(doc.numPages, 4); p++) {
       const tc = await (await doc.getPage(p)).getTextContent();
-      const itens = tc.items.filter((i) => i.str && i.str.trim())
-        .map((i) => ({ x: i.transform[4], y: i.transform[5], w: i.width || 0, h: Math.abs(i.transform[3]) || 8, s: i.str.trim() }))
+      paginas.push(tc.items.filter((i) => i.str && i.str.trim())
+        .map((i) => ({ x: i.transform[4], y: i.transform[5], w: i.width || 0, h: Math.abs(i.transform[3]) || 8, s: i.str.trim() })));
+    }
+    return paginas;
+  }
+
+  // Agrupa os textos das páginas em linhas (mesma altura), da esquerda para a direita.
+  // Recebe as páginas já em itens (do PDF digital ou do OCR, que traz também a confiança "conf").
+  function linhas(paginas) {
+    const out = [];
+    for (let p = 1; p <= paginas.length; p++) {
+      const itens = paginas[p - 1]
         .filter((i) => !/^[A-ZÃÕ]$/.test(i.s)) // letras soltas de "ADMISSÃO"/"DEMISSÃO" escritas na vertical
         .sort((a, b) => b.y - a.y);
       const rows = [];
@@ -48,7 +58,7 @@ window.Leitura = (() => {
       if (/%$/.test(s)) { if (cur) cur.pct.push(s); continue; }
       if (/^#/.test(s)) { if (cur) cur.erros.push(s); continue; } // #REF!, #VALOR! da planilha de origem
       const v = numero(s);
-      if (v !== null) { if (cur) cur.nums.push({ x: it.x + it.w / 2, v }); continue; }
+      if (v !== null) { if (cur) cur.nums.push({ x: it.x + it.w / 2, v, conf: it.conf }); continue; }
       const junta = cur && !cur.nums.length && !cur.pct.length && !cur.erros.length && !/:\s*$/.test(cur.texto) && it.x - cur.fim < it.h * 4;
       if (junta) { cur.texto += ' ' + s; cur.fim = it.x + it.w; }
       else { cur = { x: it.x, fim: it.x + it.w, texto: s, nums: [], pct: [], erros: [] }; segs.push(cur); }
@@ -99,13 +109,37 @@ window.Leitura = (() => {
     ...['realizado', 'previsto'].flatMap((l) => [...Object.values(FINANCAS), 'emprestimos_receita', 'emprestimos_despesa', 'grande_total'].map((k) => ['financeiro', l, k])),
   ];
 
+  // ---------- Tolerância a erros de OCR: rótulo mais parecido entre os conhecidos ----------
+  const ROTULOS_CONHECIDOS = () => [...Object.keys(LIDERANCA), ...Object.keys(ESTRUTURA), ...Object.keys(DEPARTAMENTOS), ...Object.keys(ROL_C), ...Object.keys(ROL_N),
+    ...Object.keys(FINANCAS), 'TRANSFERENCIA', 'GRANDE TOTAL', 'EMPRESTIMOS IPB / JPEF', 'RECEITAS', 'DESPESAS', 'DIFERENCA (ADMISSAO - DEMISSAO)', 'ROL ATUAL (COMUNGANTES + NAO COMUNGANTES)'];
+  function distancia(a, b) {
+    const m = a.length, n = b.length, d = Array.from({ length: m + 1 }, (_, i) => [i]);
+    for (let j = 1; j <= n; j++) d[0][j] = j;
+    for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[m][n];
+  }
+  let _conhecidos = null;
+  function rotuloProximo(k) {
+    const limpo = k.replace(/[^A-Z0-9 ()/+-]/g, '').replace(/\s+/g, ' ').trim();
+    if (limpo.length < 3) return k;
+    _conhecidos = _conhecidos || [...new Set(ROTULOS_CONHECIDOS())];
+    let melhor = k, nota = 0;
+    for (const c of _conhecidos) {
+      const sim = 1 - distancia(limpo, c) / Math.max(limpo.length, c.length);
+      if (sim > nota) { nota = sim; melhor = c; }
+    }
+    return nota >= (limpo.length <= 5 ? 0.8 : 0.72) ? melhor : k;
+  }
+
   const centro = (it) => it.x + it.w / 2;
   const maisPerto = (x, cols) => cols.reduce((m, c, i) => (Math.abs(x - c) < Math.abs(x - cols[m]) ? i : m), 0);
   const isoData = (s) => { const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
 
   // Retorna { ok, dados, alertas[], modelo, ident{}, lidos, esperados }
-  async function extrair(doc, { sinodo = null, presbiterio = null } = {}) {
-    const rows = await linhas(doc);
+  // doc: PDF digital (pdf.js) — ou null quando "paginas" já vem do OCR
+  async function extrair(doc, { sinodo = null, presbiterio = null } = {}, paginas = null) {
+    const ocr = !!paginas;
+    const rows = linhas(paginas || await itensPdf(doc));
     const c = { admissao: {}, demissao: {} }, nc = { admissao: {}, demissao: {} };
     const d = { lideranca: {}, estrutura: {}, departamentos: {}, comungantes: c, nao_comungantes: nc, rol_atual: undefined, financeiro: { realizado: {}, previsto: {} } };
     const alertas = [];
@@ -117,8 +151,12 @@ window.Leitura = (() => {
     const grandeTotalFinal = {};
     // Rastreabilidade: página e trecho (a linha do documento) de onde cada campo foi lido
     const origem = {};
-    let trecho = null;
-    const marcar = (caminho) => { origem[caminho] = trecho; };
+    let trecho = null, segAtual = null;
+    // No OCR, guarda também a menor confiança entre os números usados no campo
+    const marcar = (caminho) => {
+      const confs = (segAtual?.nums || []).map((n) => n.conf).filter((c) => c != null);
+      origem[caminho] = confs.length ? { ...trecho, conf: Math.round(Math.min(...confs)) } : trecho;
+    };
 
     const depois = (row, i) => row.itens.slice(i + 1).map((x) => x.s);
     for (const row of rows) {
@@ -138,8 +176,9 @@ window.Leitura = (() => {
 
       // ---- Mudança de seção ----
       if (texto.includes('LIDERANCA FORMAL')) { secao = 'estrutura'; continue; }
-      if (ks.includes('MASC.') && ks.includes('TOTAL')) {
-        const cab = row.itens.filter((x) => ['MASC.', 'FEM.', 'TOTAL'].includes(chave(x.s))).map(centro);
+      const cabecalho = (x) => ['MASC', 'FEM', 'TOTAL'].includes(chave(x.s).replace(/[^A-Z]/g, ''));
+      if (ks.some((k) => k.replace(/[^A-Z]/g, '') === 'MASC') && ks.some((k) => k.replace(/[^A-Z]/g, '') === 'TOTAL') && row.itens.filter(cabecalho).length >= 6) {
+        const cab = row.itens.filter(cabecalho).map(centro);
         colC = cab.slice(0, 3); colN = cab.slice(3, 6);
         xNC = row.itens.find((x) => chave(x.s).startsWith('NAO-COMUNGANTES'))?.x ?? null;
         secao = 'rol'; continue;
@@ -149,8 +188,15 @@ window.Leitura = (() => {
       if (secao === 'estrutura' && texto.includes('DE MEMBROS')) xMembros = row.itens.find((x) => norm(x.s).includes('DE MEMBROS'))?.x ?? null;
 
       const segs = segmentos(row);
+      if (ocr) {
+        // OCR: corrige rótulos parecidos e reconhece a seção pelos rótulos (os títulos costumam sair ilegíveis)
+        segs.forEach((g) => { g.k = rotuloProximo(g.k); });
+        const tem = (mapa) => segs.some((g) => mapa[g.k]);
+        if ((secao === null || secao === 'estrutura') && (tem(LIDERANCA) || tem(ESTRUTURA) || tem(DEPARTAMENTOS))) secao = 'estrutura';
+        if (secao !== 'fin' && secao !== 'fim' && tem(FINANCAS) && segs.some((g) => g.nums.length)) secao = 'fin';
+      }
       if (secao === 'estrutura') {
-        for (const g of segs) {
+        for (const g of segs) { segAtual = g;
           if (LIDERANCA[g.k]) { d.lideranca[LIDERANCA[g.k]] = g.nums[0]?.v ?? null; marcar(`lideranca.${LIDERANCA[g.k]}`); lidos++; }
           else if (ESTRUTURA[g.k]) { d.estrutura[ESTRUTURA[g.k]] = g.nums[0]?.v ?? null; marcar(`estrutura.${ESTRUTURA[g.k]}`); lidos++; }
           else if (DEPARTAMENTOS[g.k]) {
@@ -160,7 +206,7 @@ window.Leitura = (() => {
           }
         }
       } else if (secao === 'rol' && colC && colN) {
-        for (const g of segs) {
+        for (const g of segs) { segAtual = g;
           const lado = xNC != null && g.x >= xNC - 2 ? 'n' : 'c';
           const cols = lado === 'n' ? colN : colC;
           const trio = [null, null, null];
@@ -185,7 +231,7 @@ window.Leitura = (() => {
         if (segs.some((g) => g.k === 'RECEITAS')) fin = 'receitas';
         if (segs.some((g) => g.k === 'DESPESAS')) fin = 'despesas';
         if (recon.length === 2 && xPrevisto == null) xPrevisto = recon[1].x;
-        recon.forEach((g, j) => {
+        recon.forEach((g, j) => { segAtual = g;
           const lado = xPrevisto != null ? (g.x >= xPrevisto - 5 ? 'previsto' : 'realizado') : (j === 0 ? 'realizado' : 'previsto');
           const f = d.financeiro[lado];
           const v = g.nums[0]?.v ?? null;
@@ -231,7 +277,7 @@ window.Leitura = (() => {
     if (d.rol_atual === undefined) d.rol_atual = null;
 
     d.identificacao = { nome_no_documento: ident.nome || null, sinodo_sigla: ident.sinodo_sigla || null, presbiterio_sigla: ident.presbiterio_sigla || null, data_organizacao: ident.data_organizacao || null };
-    d._origem = { formato: 'pdf', campos: origem };
+    d._origem = { formato: ocr ? 'ocr' : 'pdf', campos: origem };
     return { ok: faltou.length <= ESPERADOS.length * 0.4, dados: d, alertas, modelo, ident, lidos, esperados: ESPERADOS.length };
   }
 
