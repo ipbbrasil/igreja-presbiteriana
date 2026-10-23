@@ -297,7 +297,7 @@ window.Ajuda = (() => {
         <li><strong>Android (Chrome):</strong> menu ⋮ → <em>Instalar app</em> ou <em>Adicionar à tela inicial</em>.</li>
         <li><strong>iPhone (Safari):</strong> botão Compartilhar → <em>Adicionar à Tela de Início</em>.</li>
         <li>O aplicativo instalado abre em tela cheia, com o ícone da IPB.</li>
-        <li><strong>Atualizar:</strong> as novidades chegam sozinhas; se algo parecer antigo, feche o aplicativo e abra de novo.</li>
+        <li><strong>Atualizar:</strong> o aplicativo abre direto da cópia guardada no aparelho (mais rápido) e baixa as novidades em segundo plano; elas aparecem na abertura seguinte. Se algo parecer antigo, feche o aplicativo e abra de novo (às vezes, duas vezes).</li>
         <li>É preciso internet para entrar, enviar e ver os dados (os dados nunca ficam guardados no aparelho).</li>
       </ul>`,
     },

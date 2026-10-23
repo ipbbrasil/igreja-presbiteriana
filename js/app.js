@@ -162,6 +162,10 @@
   const envioDoRelatorio = (r) => S.envios.find((e) => e.relatorio_id === r.id) || S.envios.find((e) => e.igrejas?.codigo === r.igreja.codigo && e.arquivo_nome === r.arquivo);
 
   async function painelOrigem(r, caminho, i) {
+    if (r.dados._origem === undefined && S.modo !== 'local') {
+      abrirPainel('Origem do valor', '<div class="carregando dark"><span class="spin"></span>Buscando a origem no documento…</div>');
+      try { await Data.carregarOrigem(r); } catch (e) { /* segue sem a localização exata */ }
+    }
     const dic = campoDic(caminho);
     const bruto = caminho.split('.').reduce((o, k) => (o == null ? undefined : o[k]), r.dados);
     const valor = i != null && Array.isArray(bruto) ? bruto[i] : bruto;

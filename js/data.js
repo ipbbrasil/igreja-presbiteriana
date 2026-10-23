@@ -80,9 +80,9 @@ window.Data = (() => {
   // ---------- Carga ----------
   // ---------- Exercícios (anos) ----------
   // Anos com relatório + ano padrão + ano anterior ao atual (os relatórios são sempre do ano que passou)
-  async function iniciarAnos() {
-    const { data } = await sb.from('relatorios').select('ano').neq('status', 'substituido');
-    const comDados = [...new Set((data || []).map((r) => r.ano))];
+  // Os anos disponíveis saem do histórico (que já traz o ano de cada relatório): sem consulta extra
+  function definirAnos() {
+    const comDados = [...new Set(state.historico.map((r) => r.ano))];
     state.anos = [...new Set([...comDados, cfg.ANO_PADRAO, new Date().getFullYear() - 1])].sort((a, b) => b - a);
     const salvo = +lerPref('painel.ano');
     state.ano = state.anos.includes(salvo) ? salvo : (comDados.length ? Math.max(...comDados) : cfg.ANO_PADRAO);
@@ -102,45 +102,71 @@ window.Data = (() => {
       com_ant, nc_ant, rol_ant: com_ant != null && nc_ant != null ? com_ant + nc_ant : null, ed_ant: num(x.ed_ant) };
   }
 
+  // Partes do relatório usadas nas telas. A origem de cada valor ("_origem", ~4x maior que os números)
+  // fica de fora e só é buscada quando alguém toca num número (carregarOrigem).
+  const PARTES_DADOS = ['lideranca', 'estrutura', 'departamentos', 'comungantes', 'nao_comungantes', 'rol_atual', 'financeiro', 'conselho', 'congregacao_anexo', 'identificacao'];
+  const SELECT_RELATORIOS = 'id, ano, versao, status, arquivo, tipo_pdf, modelo, extraido_em, '
+    + PARTES_DADOS.map((c) => `d_${c}:dados->${c}`).join(', ')
+    + ', igrejas(codigo, nome, cidade, uf, organizacao), presbiterios(nome, sigla, sinodos(nome, sigla)), alertas(nivel, campo, mensagem), historico_status(status, comentario, criado_em)';
+
   async function carregar() {
     if (state.modo === 'local') return carregarLocal();
-    if (!state.anos.length) await iniciarAnos();
-    const { data, error } = await sb.from('relatorios')
-      .select('id, ano, versao, status, arquivo, tipo_pdf, modelo, dados, extraido_em, igrejas(codigo, nome, cidade, uf, organizacao), presbiterios(nome, sigla, sinodos(nome, sigla)), alertas(nivel, campo, mensagem), historico_status(status, comentario, criado_em)')
-      .eq('ano', state.ano)
-      .neq('status', 'substituido');
-    if (error) throw error;
-    state.relatorios = data.map((r) => ({
+    cacheNacional.clear(); // os totais do sínodo/nacional podem ter mudado
+    // Primeira vez: o histórico (leve) diz quais anos existem; depois disso ele vem junto com o resto
+    const primeira = !state.anos.length;
+    if (primeira) { await carregarHistorico(); definirAnos(); }
+    // Tudo do exercício ao mesmo tempo (antes eram várias consultas, uma depois da outra)
+    const [rel, exerc] = await Promise.all([
+      sb.from('relatorios').select(SELECT_RELATORIOS).eq('ano', state.ano).neq('status', 'substituido'),
+      buscarExercicio(),
+      carregarEnvios(),
+      primeira ? null : carregarHistorico(),
+    ]);
+    if (rel.error) throw rel.error;
+    state.relatorios = rel.data.map((r) => ({
       id: r.id, ano: r.ano, versao: r.versao, status: r.status, arquivo: r.arquivo, tipo_pdf: r.tipo_pdf, modelo: r.modelo,
       extraido_em: r.extraido_em,
       igreja: r.igrejas,
-      dados: r.dados,
+      dados: Object.fromEntries(PARTES_DADOS.map((c) => [c, r[`d_${c}`] ?? null])),
       alertas: (r.alertas || []).map((a) => ({ nivel: a.nivel, campo: a.campo, msg: a.mensagem })),
       historico: (r.historico_status || []).sort((a, b) => a.criado_em.localeCompare(b.criado_em)),
     }));
-    const p = data[0]?.presbiterios;
+    const p = rel.data[0]?.presbiterios;
     if (p) { state.presbiterio = { nome: p.nome, sigla: p.sigla }; state.sinodo = p.sinodos; }
     state.igrejas = state.perfil.igreja ? [state.perfil.igreja] : state.relatorios.map((r) => r.igreja);
-    await carregarEnvios();
-    await carregarExercicio();
-    await carregarHistorico();
+    aplicarExercicio(exerc);
   }
 
-  // Situação do exercício e igrejas vinculadas ao presbitério (para "Não enviado")
-  async function carregarExercicio() {
+  // Origem de cada valor (rastreabilidade), buscada só quando necessária e guardada no relatório
+  async function carregarOrigem(r) {
+    if (state.modo === 'local' || r.dados._origem !== undefined) return;
+    const { data } = await sb.from('relatorios').select('o:dados->_origem').eq('id', r.id).maybeSingle();
+    r.dados._origem = data?.o || null;
+  }
+
+  // Situação do exercício e igrejas vinculadas ao presbitério (para "Não enviado") — três consultas em paralelo
+  async function buscarExercicio() {
     const presb = state.perfil?.presbiterio_id;
+    if (!presb) return null;
+    const [ex, ev, vi] = await Promise.all([
+      sb.from('exercicios').select('situacao, fechado_em, comentario').eq('presbiterio_id', presb).eq('ano', state.ano).maybeSingle(),
+      sb.from('exercicio_eventos').select('acao, comentario, criado_em').eq('presbiterio_id', presb).eq('ano', state.ano).order('criado_em'),
+      state.perfil.papel === 'representante' ? null
+        : sb.from('vinculos_igreja').select('inicio, igrejas(id, codigo, nome, tipo, igreja_mae_id, cidade, uf, organizacao, situacao)').eq('presbiterio_id', presb).is('fim', null),
+    ]);
+    return { ex, ev, vi };
+  }
+  function aplicarExercicio(r) {
     state.exercicio = { situacao: 'aberto' }; state.eventosExercicio = []; state.cadastradas = [];
-    if (!presb) return;
-    const ex = await sb.from('exercicios').select('situacao, fechado_em, comentario').eq('presbiterio_id', presb).eq('ano', state.ano).maybeSingle();
-    if (!ex.error && ex.data) state.exercicio = ex.data;
-    const ev = await sb.from('exercicio_eventos').select('acao, comentario, criado_em').eq('presbiterio_id', presb).eq('ano', state.ano).order('criado_em');
-    if (!ev.error) state.eventosExercicio = ev.data; // tabela só existe depois do 006_exercicio.sql
-    if (state.perfil.papel === 'representante') return;
-    const vi = await sb.from('vinculos_igreja').select('inicio, igrejas(id, codigo, nome, tipo, igreja_mae_id, cidade, uf, organizacao, situacao)').eq('presbiterio_id', presb).is('fim', null);
-    if (!vi.error) state.cadastradas = vi.data.filter((v) => v.igrejas).map((v) => ({ ...v.igrejas, vinculo_inicio: v.inicio }));
-    const comRelatorio = new Set(state.relatorios.map((r) => r.igreja.codigo));
+    if (!r) return;
+    if (!r.ex.error && r.ex.data) state.exercicio = r.ex.data;
+    if (!r.ev.error) state.eventosExercicio = r.ev.data; // tabela só existe depois do 006_exercicio.sql
+    if (r.vi && !r.vi.error) state.cadastradas = r.vi.data.filter((v) => v.igrejas).map((v) => ({ ...v.igrejas, vinculo_inicio: v.inicio }));
+    const comRelatorio = new Set(state.relatorios.map((x) => x.igreja.codigo));
     for (const i of enviamRelatorio()) if (!state.igrejas.some((x) => x.codigo === i.codigo) && !comRelatorio.has(i.codigo)) state.igrejas.push(i);
   }
+  // Recarrega só o exercício (depois de fechar ou reabrir)
+  async function carregarExercicio() { aplicarExercicio(await buscarExercicio()); }
 
   // Quem envia relatório próprio: igrejas ativas e congregações presbiteriais (sem igreja-mãe).
   // Congregações de uma igreja entram no relatório da igreja-mãe (anexo "Congregação").
@@ -152,11 +178,19 @@ window.Data = (() => {
   };
 
   // ---------- Visão nacional (totais agregados por presbitério e UF) ----------
-  async function painelNacional() {
-    if (state.modo === 'local') return nacionalLocal();
-    const [p, e] = await Promise.all([sb.rpc('painel_nacional', { p_ano: state.ano }), sb.rpc('estrutura_nacional')]);
-    if (p.error) throw new Error(p.error.message.includes('painel_nacional') ? 'A visão nacional ainda não foi ativada no banco (rode o 009_nacional.sql).' : p.error.message);
-    return { linhas: p.data, estrutura: e.error ? [] : e.data };
+  // Guardado na memória da sessão: voltar ao sínodo/nacional é instantâneo (limpo a cada recarga dos dados)
+  const cacheNacional = new Map();
+  function emCache(chave, buscar) {
+    if (!cacheNacional.has(chave)) cacheNacional.set(chave, buscar().catch((e) => { cacheNacional.delete(chave); throw e; }));
+    return cacheNacional.get(chave);
+  }
+  function painelNacional() {
+    if (state.modo === 'local') return Promise.resolve(nacionalLocal());
+    return emCache(`painel-${state.ano}`, async () => {
+      const [p, e] = await Promise.all([sb.rpc('painel_nacional', { p_ano: state.ano }), sb.rpc('estrutura_nacional')]);
+      if (p.error) throw new Error(p.error.message.includes('painel_nacional') ? 'A visão nacional ainda não foi ativada no banco (rode o 009_nacional.sql).' : p.error.message);
+      return { linhas: p.data, estrutura: e.error ? [] : e.data };
+    });
   }
   // Evolução por exercício e presbitério (totais de relatórios validados)
   async function evolucaoNacional() {
@@ -170,9 +204,11 @@ window.Data = (() => {
       }
       return Object.values(porAno);
     }
-    const { data, error } = await sb.rpc('evolucao_nacional');
-    if (error) throw new Error(error.message.includes('evolucao_nacional') ? 'A evolução histórica nacional ainda não foi ativada no banco (rode o 013_evolucao_nacional.sql).' : error.message);
-    return data;
+    return emCache('evolucao', async () => {
+      const { data, error } = await sb.rpc('evolucao_nacional');
+      if (error) throw new Error(error.message.includes('evolucao_nacional') ? 'A evolução histórica nacional ainda não foi ativada no banco (rode o 013_evolucao_nacional.sql).' : error.message);
+      return data;
+    });
   }
 
   // Modo local: mesma estrutura, calculada a partir do arquivo do presbitério
@@ -376,6 +412,9 @@ window.Data = (() => {
   // ---------- Digitação / correção manual ----------
   async function corrigirRelatorio(relId, dados, alteracoes, comentario) {
     if (state.modo === 'supabase') {
+      // A origem não vem na carga normal: garante que ela continue gravada junto dos dados corrigidos
+      const atual = state.relatorios.find((x) => x.id === relId);
+      if (atual) { await carregarOrigem(atual); if (atual.dados._origem && dados._origem === undefined) dados._origem = atual.dados._origem; }
       const { error } = await sb.rpc('corrigir_relatorio', { p_relatorio: relId, p_dados: dados, p_alteracoes: alteracoes, p_comentario: comentario || null });
       if (error) throw new Error(error.message);
       return carregar();
@@ -457,7 +496,7 @@ window.Data = (() => {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     trocarAno, exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
-    painelNacional, evolucaoNacional, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
+    painelNacional, evolucaoNacional, carregarOrigem, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, listarAcessosSuperiores, removerAcesso, verConvite, usarConvite,
   };
 })();
