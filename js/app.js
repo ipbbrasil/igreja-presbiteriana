@@ -1639,7 +1639,10 @@
         </form><p class="nota">Os convites valem sempre para o <strong>${esc(S.presbiterio?.nome || 'seu presbitério')}${S.presbiterio?.sigla ? ` (${esc(S.presbiterio.sigla)})` : ''}</strong>, que é o presbitério do seu acesso. Administradores de outros presbitérios são convidados pelo superadministrador.</p>
         <div id="conv-ok"></div>`, { sub: 'Representante vê e envia só a própria igreja; administrador vê o presbitério inteiro e valida relatórios' })}
       <section class="card"><header class="card-h"><h2>Convites pendentes</h2></header><div id="l-conv"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>
-      <section class="card"><header class="card-h"><h2>Usuários com acesso</h2></header><div id="l-usu"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>`;
+      <section class="card"><header class="card-h"><h2>Usuários com acesso</h2></header><div id="l-usu"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>
+      <section class="card"><header class="card-h"><h2>Outros acessos a este presbitério</h2>
+        <p>Contas de nível superior que, pelas regras da plataforma, também podem consultar os relatórios das igrejas deste presbitério. São gerenciadas pelo superadministrador.</p></header>
+        <div id="l-sup"><div class="carregando dark"><span class="spin"></span>Carregando…</div></div></section>`;
 
     async function carregarListas() {
       try {
@@ -1662,6 +1665,17 @@
             ${u.email === S.usuario.email ? '<span class="flag">você</span>' : `<button class="btn danger" data-remover="${esc(u.user_id)}" data-nome="${esc(u.nome || u.email)}">Remover</button>`}
           </li>`).join('')}</ul>` : '<p class="vazio">Nenhum usuário.</p>';
       } catch (e) { document.getElementById('l-usu').innerHTML = `<p class="erro">${esc(e.message)}</p>`; }
+      const $sup = document.getElementById('l-sup');
+      try {
+        const sup = await Data.listarAcessosSuperiores();
+        if ($sup) $sup.innerHTML = sup.length ? `<ul class="envios">${sup.map((u) => `<li>
+            <div class="env-m"><strong>${esc(u.nome || u.email)}</strong>
+              <span class="muted small">${esc(u.email)} · ${PAPEIS[u.papel] || u.papel} · abrangência: ${esc(u.abrangencia)}</span>
+              <span class="muted small">Último acesso: ${u.ultimo_acesso ? fmt.dataHora(u.ultimo_acesso) : 'nunca'}</span></div>
+            <span class="flag">somente leitura</span></li>`).join('')}</ul>` : '<p class="vazio">Nenhuma conta de nível superior tem acesso a este presbitério.</p>';
+      } catch (e) {
+        if ($sup) $sup.innerHTML = `<p class="nota">${/listar_acessos_superiores/.test(e.message) ? 'Lista indisponível: o responsável técnico precisa aplicar o script 012 no banco.' : esc(e.message)}</p>`;
+      }
     }
 
     return {

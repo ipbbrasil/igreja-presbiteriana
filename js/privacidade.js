@@ -28,7 +28,7 @@ window.Privacidade = (() => {
       ${sec('5. Quem tem acesso', `<ul>
           <li><strong>Representante da igreja:</strong> somente os dados e arquivos da própria igreja.</li>
           <li><strong>Administrador do presbitério:</strong> as igrejas sob a jurisdição do presbitério, os usuários e o registro de ações do presbitério.</li>
-          <li><strong>Visões do sínodo e nacional:</strong> apenas <strong>totais agregados</strong> por presbitério e UF — nunca os dados de uma igreja específica nem dados pessoais.</li>
+          <li><strong>Administrador sinodal</strong> (do sínodo do presbitério), <strong>administrador nacional</strong> e <strong>superadministrador:</strong> pelas regras da plataforma, também podem consultar os relatórios das igrejas sob sua abrangência. As telas do sínodo e nacional mostram apenas <strong>totais agregados</strong>. Essas contas aparecem para o administrador do presbitério em <em>Usuários e convites → Outros acessos a este presbitério</em>.</li>
           <li>Os arquivos originais só podem ser abertos por quem tem acesso à igreja, por meio de link temporário (10 minutos).</li>
           <li>Quem não recebeu convite (ou não está logado) não vê nenhum dado da plataforma.</li>
         </ul>`)}

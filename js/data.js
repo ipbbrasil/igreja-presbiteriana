@@ -352,6 +352,7 @@ window.Data = (() => {
   const criarConvite = ({ email, nome, papel, igreja }) => rpc('criar_convite', { p_email: email, p_nome: nome, p_papel: papel, p_igreja: igreja || null });
   const cancelarConvite = (id) => rpc('cancelar_convite', { p_id: id });
   const listarUsuarios = () => rpc('listar_usuarios');
+  const listarAcessosSuperiores = () => rpc('listar_acessos_superiores');
   const removerAcesso = (userId) => rpc('remover_acesso', { p_user: userId });
   async function listarConvites() {
     const { data, error } = await sb.from('convites').select('id, codigo, email, nome, papel, criado_em, expira_em, igrejas(codigo, nome)')
@@ -403,6 +404,6 @@ window.Data = (() => {
     envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
     painelNacional, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
-    criarConvite, cancelarConvite, listarConvites, listarUsuarios, removerAcesso, verConvite, usarConvite,
+    criarConvite, cancelarConvite, listarConvites, listarUsuarios, listarAcessosSuperiores, removerAcesso, verConvite, usarConvite,
   };
 })();

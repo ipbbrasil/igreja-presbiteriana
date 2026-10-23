@@ -26,6 +26,7 @@ window.Ajuda = (() => {
       <div class="tbl-wrap"><table class="tbl aj-tbl"><thead><tr><th>Função</th><th>Representante</th><th>Adm. presbitério</th><th>Adm. sínodo</th><th>Superadmin</th></tr></thead><tbody>
         <tr><td>Ver dados e PDF da própria igreja</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
         <tr><td>Ver todas as igrejas do presbitério</td><td>—</td><td>✓</td><td>✓ (do sínodo)</td><td>—</td></tr>
+        <tr><td>Consultar relatórios das igrejas (regra do banco de dados)</td><td>só a própria</td><td>do presbitério</td><td>do sínodo</td><td>todos (sem tela de igreja)</td></tr>
         <tr><td>Enviar relatório (com prévia)</td><td>só da própria igreja</td><td>de qualquer igreja do presbitério</td><td>—</td><td>—</td></tr>
         <tr><td>Ler agora (leitura automática)</td><td>✓ (próprios envios)</td><td>✓</td><td>—</td><td>—</td></tr>
         <tr><td>Digitar / corrigir dados</td><td>—</td><td>✓</td><td>—</td><td>—</td></tr>
@@ -210,6 +211,7 @@ window.Ajuda = (() => {
         <li>O convite vale <strong>14 dias</strong>, funciona <strong>uma vez</strong> e só com o <strong>e-mail cadastrado</strong>. Um novo convite para o mesmo e-mail substitui o anterior.</li>
         <li><strong>Convites pendentes:</strong> reenviar o link ou cancelar.</li>
         <li><strong>Usuários com acesso:</strong> papel, igreja e último acesso. <strong>Remover</strong> tira o acesso imediatamente (você não pode remover o seu próprio).</li>
+        <li><strong>Outros acessos a este presbitério:</strong> superadministrador, administrador nacional e administrador sinodal do seu sínodo — contas de nível superior que também podem consultar os relatórios das suas igrejas. Aparecem só para consulta (sem “Remover”); quem as gerencia é o superadministrador.</li>
         <li>O administrador de um presbitério <strong>novo</strong> é convidado pelo superadministrador, na tela Estrutura.</li>
       </ul>`,
     },
@@ -250,7 +252,7 @@ window.Ajuda = (() => {
         <li><strong>Visão do sínodo:</strong> os mesmos indicadores para os presbitérios do sínodo, com a lista de presbitérios e a comparação entre eles.</li>
         <li>Somente relatórios <strong>validados</strong> entram nos totais, e cada número mostra quantas igrejas contribuíram. Cada exercício é somado ao sínodo a que o presbitério pertencia naquele ano.</li>
         <li>Enquanto nem todas as unidades estiverem na plataforma, os totais aparecem como <strong>parciais</strong> e não são apresentados como o total da IPB. O total oficial da denominação só será exibido quando houver fonte institucional.</li>
-        <li>Estas telas mostram apenas <strong>totais agregados</strong>. O detalhe de cada igreja continua restrito a quem tem jurisdição sobre ela.</li>
+        <li>Estas telas mostram apenas <strong>totais agregados</strong>; elas não abrem os dados de uma igreja de outro presbitério.</li>
       </ul>`,
     },
     {
@@ -271,7 +273,7 @@ window.Ajuda = (() => {
         <li><strong>Regras de acesso no banco de dados:</strong> cada consulta é filtrada pelo próprio banco conforme o papel e a jurisdição do usuário — não é possível ver dados de outra igreja ou presbitério “por fora” do site.</li>
         <li><strong>Sem convite, nada:</strong> uma conta criada sem convite (sem perfil de acesso) não vê nenhum dado — nem relatórios nem a lista de igrejas, presbitérios e sínodos. Sem login, também nada é visível.</li>
         <li><strong>Arquivos originais</strong> em pasta privada, abertos só por link temporário (10 minutos).</li>
-        <li><strong>Visões do sínodo e nacional</strong> mostram apenas totais agregados.</li>
+        <li><strong>Visões do sínodo e nacional</strong> mostram apenas totais agregados. Contas de nível superior (superadministrador, administrador nacional e sinodal) podem consultar relatórios das igrejas sob sua abrangência e aparecem para o administrador do presbitério em <em>Outros acessos a este presbitério</em>.</li>
         <li><strong>Dados pessoais</strong> do secretário que constam no formulário não são extraídos nem exibidos; ficam só no arquivo original.</li>
         <li><strong>Comunicação criptografada</strong> (HTTPS); senhas guardadas de forma cifrada; a chave secreta do banco não fica no site.</li>
         <li><strong>Nada é apagado</strong> por atualização ou substituição de relatório: versões antigas, correções e histórico ficam guardados.</li>
@@ -319,7 +321,7 @@ window.Ajuda = (() => {
         <tr><td>Endereço e chave pública do Supabase</td><td><code>js/config.js</code> (SUPABASE_URL, SUPABASE_ANON_KEY)</td><td>Banco que o site usa. Use só a chave <em>publishable</em>, nunca a secreta</td></tr>
         <tr><td>Exercício padrão</td><td><code>js/config.js</code> (ANO_PADRAO)</td><td>Ano exibido no painel</td></tr>
         <tr><td>Dicionário de dados (células do modelo)</td><td><code>js/dicionario.js</code> · página Perfil → Dicionário de dados</td><td>Define de onde cada campo é lido no Excel; ajustar aqui se a IPB publicar nova versão do modelo</td></tr>
-        <tr><td>Estrutura do banco</td><td>SQL Editor, nesta ordem: <code>schema.sql</code>, <code>002_envios</code>, <code>003_leitura</code>, <code>004_correcoes</code>, <code>005_usuarios</code>, <code>006_exercicio</code>, <code>007_cadastro</code>, <code>008_auditoria</code>, <code>009_nacional</code>, <code>010_estrutura</code>, <code>011_restricao</code></td><td>Tabelas, regras de acesso, pasta privada, funções e gatilhos (o 011 impede que contas sem perfil vejam qualquer dado)</td></tr>
+        <tr><td>Estrutura do banco</td><td>SQL Editor, nesta ordem: <code>schema.sql</code>, <code>002_envios</code>, <code>003_leitura</code>, <code>004_correcoes</code>, <code>005_usuarios</code>, <code>006_exercicio</code>, <code>007_cadastro</code>, <code>008_auditoria</code>, <code>009_nacional</code>, <code>010_estrutura</code>, <code>011_restricao</code>, <code>012_acessos_superiores</code></td><td>Tabelas, regras de acesso, pasta privada, funções e gatilhos (o 011 impede que contas sem perfil vejam qualquer dado; o 012 lista os acessos de nível superior)</td></tr>
         <tr><td>Confirmação de e-mail</td><td>Authentication → Sign In / Providers → Email → <em>Confirm email</em></td><td>Deve ficar <strong>desligada</strong> para o convite criar a conta na hora</td></tr>
         <tr><td>Criar o superadministrador</td><td>Authentication → Users → Add user (Auto Confirm) e depois SQL na tabela <code>perfis</code> com papel <code>superadmin</code></td><td>Conta que cadastra sínodos e presbitérios</td></tr>
         <tr><td>Perfis manuais</td><td>SQL Editor, tabela <code>perfis</code></td><td>Papel (superadmin, admin_nacional, admin_sinodal, admin_presbiterial, representante) e vínculo</td></tr>
