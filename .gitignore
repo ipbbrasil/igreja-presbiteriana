@@ -12,3 +12,6 @@ supabase/seed.sql
 Thumbs.db
 .DS_Store
 supabase/origem-importacao.sql
+
+# Ferramentas locais do Claude Code (skills, configurações)
+.claude/
