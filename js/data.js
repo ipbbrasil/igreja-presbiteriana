@@ -372,6 +372,18 @@ window.Data = (() => {
     return data?.[0] || false;
   }
 
+  // Versão em vigor (não substituída) da igreja no exercício, para avisar antes de substituí-la
+  async function relatorioAtual(codigo, ano) {
+    if (ano === state.ano) {
+      const r = state.relatorios.find((x) => x.igreja?.codigo === codigo);
+      return r ? { versao: r.versao || 1, status: r.status } : null;
+    }
+    if (state.modo === 'local') return null;
+    const { data } = await sb.from('relatorios').select('versao, status, igrejas!inner(codigo)')
+      .eq('ano', ano).eq('igrejas.codigo', codigo).neq('status', 'substituido').order('versao', { ascending: false }).limit(1);
+    return data?.[0] ? { versao: data[0].versao, status: data[0].status } : null;
+  }
+
   async function enviarRelatorio({ codigo, ano, file, analise }) {
     if (state.modo === 'local') throw new Error('O envio de arquivos só funciona conectado ao Supabase (site publicado).');
     const caminho = `${codigo}/${ano}/${Date.now()}-${Envio.nomeSeguro(file.name)}`;
@@ -494,7 +506,7 @@ window.Data = (() => {
 
   return {
     state, sessaoAtual, entrar, entrarLocal, sair, carregar, definirStatus, podeValidar, podeEnviar,
-    envioExiste, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
+    envioExiste, relatorioAtual, enviarRelatorio, processarEnvio, corrigirRelatorio, digitarEnvio, listarCorrecoes, urlArquivo,
     trocarAno, exercicioFechado, naoEnviadas, enviamRelatorio, fecharExercicio, reabrirExercicio,
     painelNacional, evolucaoNacional, carregarOrigem, listarEstrutura, salvarSinodo, salvarPresbiterio, moverPresbiterio, convidarAdmin, listarPresbiterios, listarAuditoria, salvarIgreja, transferirIgreja, coletarBackup, baixarArquivo, registrarBackup,
     criarConvite, cancelarConvite, listarConvites, listarUsuarios, listarAcessosSuperiores, removerAcesso, verConvite, usarConvite,

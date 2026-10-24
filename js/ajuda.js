@@ -125,6 +125,7 @@ window.Ajuda = (() => {
         <li>Se o <strong>ano</strong> do documento é o exercício escolhido — ano diferente <strong>impede o envio</strong>.</li>
         <li>Se o <strong>nome da igreja</strong> no documento confere (aviso, não impede).</li>
         <li>Se o <strong>mesmo arquivo</strong> já foi enviado — duplicado <strong>impede o envio</strong>.</li>
+        <li>Se a igreja <strong>já tem relatório daquele exercício</strong> (enviado antes ou importado): aparece o aviso <em>“Já existe relatório deste exercício”</em>, com a versão atual e a situação dela (por exemplo, validado). Para seguir, marque também <em>“Quero substituir a versão…”</em>. O envio cria uma versão nova, que <strong>volta para conferência</strong>; a anterior fica no histórico como substituída. Use só para relatório corrigido — reenviar sem necessidade desfaz a validação.</li>
         <li>Em PDF digital ou Excel: <strong>leitura dos números</strong> e as <strong>somas</strong>, para você corrigir antes de enviar se algo não fechar.</li>
       </ul>
       <p>Verde = ok · amarelo = aviso (pode enviar) · vermelho = impede o envio.</p>
@@ -357,6 +358,7 @@ window.Ajuda = (() => {
         <dt>“Não há relatório deste exercício para esta igreja”</dt><dd>O ano escolhido no seletor de exercício ainda não tem relatório dessa igreja. Escolha outro ano no topo da tela ou envie o relatório.</dd>
         <dt>“O exercício está fechado”</dt><dd>O administrador encerrou o ano. Para enviar ou corrigir algo, ele precisa reabrir o exercício (com motivo) na tela Conferência.</dd>
         <dt>“Arquivo já enviado”</dt><dd>Esse mesmo arquivo já está no sistema para essa igreja e ano. Se houve correção, envie o arquivo corrigido.</dd>
+        <dt>“Já existe relatório deste exercício” / botão Enviar não libera</dt><dd>A igreja já tem uma versão desse ano. Se o arquivo é mesmo uma correção, marque <em>“Quero substituir a versão…”</em>; a versão nova volta para conferência. Se não, não envie: a versão atual continua valendo.</dd>
         <dt>PDF digitalizado (imagem)</dt><dd>Pode ser enviado, mas os números serão digitados pelo administrador. Sempre que possível, envie o Excel ou o PDF gerado direto do Excel do modelo.</dd>
         <dt>Somas com divergência ou “verificar dado”</dt><dd>Algum total do relatório não bate com a soma das linhas, ou a mudança no ano não é explicada pelas admissões e demissões. Confira o relatório; o administrador pode pedir correção ou corrigir os dados.</dd>
         <dt>A planilha “não está na posição do modelo”</dt><dd>Foram inseridas ou apagadas linhas no Excel. Use o modelo oficial CSM-IPB sem alterar a estrutura.</dd>

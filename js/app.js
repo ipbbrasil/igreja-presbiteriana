@@ -638,6 +638,7 @@
         <header class="card-h"><h2>3. Verificação</h2><p id="verif-s">Analisando o arquivo…</p></header>
         <div id="verif-l"></div>
         <div id="previa"></div>
+        <label class="conf" id="env-subst-l" hidden><input type="checkbox" id="env-subst"> <span id="env-subst-t"></span></label>
         <label class="conf"><input type="checkbox" id="env-conf"> <span id="env-conf-t">Confirmo que este é o relatório oficial aprovado pelo Conselho da igreja.</span></label>
         <button class="btn primary wide" id="env-btn" disabled>${ic('enviar')}Enviar relatório</button>
       </section>
@@ -655,10 +656,13 @@
     const $ig = document.getElementById('env-igreja'), $ano = document.getElementById('env-ano');
     const $arq = document.getElementById('env-arq'), $conf = document.getElementById('env-conf'), $btn = document.getElementById('env-btn');
     const $verif = document.getElementById('verif'), $lista = document.getElementById('verif-l'), $res = document.getElementById('verif-s');
+    const $substL = document.getElementById('env-subst-l'), $subst = document.getElementById('env-subst');
     let analise = null, rodada = 0;
 
     const anoFechado = () => Data.exercicioFechado() && +$ano.value === S.ano;
-    const atualizarBotao = () => { $btn.disabled = !(analise && !analise.bloqueia && $ig.value && $conf.checked && !anoFechado()); };
+    const atualizarBotao = () => {
+      $btn.disabled = !(analise && !analise.bloqueia && $ig.value && $conf.checked && !anoFechado() && (!analise.substitui || $subst.checked));
+    };
 
     async function analisar() {
       const file = $arq.files[0];
@@ -666,7 +670,7 @@
       document.getElementById('drop-t').textContent = file.name;
       document.getElementById('drop-s').textContent = tamanho(file.size) + ' · toque para trocar';
       $verif.hidden = false; $lista.innerHTML = '<div class="carregando dark"><span class="spin"></span>Analisando…</div>'; $res.textContent = 'Analisando o arquivo…';
-      document.getElementById('previa').innerHTML = ''; $conf.checked = false;
+      document.getElementById('previa').innerHTML = ''; $conf.checked = false; $subst.checked = false; $substL.hidden = true;
       analise = null; atualizarBotao();
       const minha = ++rodada;
       const igreja = S.igrejas.find((i) => i.codigo === $ig.value) || { nome: '' };
@@ -678,6 +682,18 @@
           const dup = await Data.envioExiste($ig.value, +$ano.value, a.sha256);
           if (dup) { a.checks.push({ estado: 'erro', titulo: 'Arquivo já enviado', detalhe: `Este mesmo arquivo foi enviado em ${fmt.dataHora(dup.enviado_em)}.` }); a.bloqueia = true; }
           else a.checks.push({ estado: 'ok', titulo: 'Arquivo novo', detalhe: 'Nenhum envio idêntico para esta igreja e exercício.' });
+        }
+        if (!a.bloqueia && $ig.value) {
+          const atual = await Data.relatorioAtual($ig.value, +$ano.value);
+          if (minha !== rodada) return;
+          if (atual) {
+            const sit = Regras.STATUS[atual.status]?.label.toLowerCase() || atual.status;
+            a.substitui = atual;
+            a.checks.push({ estado: 'aviso', titulo: 'Já existe relatório deste exercício',
+              detalhe: `Esta igreja já tem a versão ${atual.versao} (${sit}). Este envio cria a versão ${atual.versao + 1}, que volta para conferência; a versão ${atual.versao} fica no histórico como substituída.` });
+            document.getElementById('env-subst-t').textContent = `Quero substituir a versão ${atual.versao} (${sit}) por este arquivo.`;
+            $substL.hidden = false;
+          }
         }
         analise = a;
         const erros = a.checks.filter((c) => c.estado === 'erro').length, avisos = a.checks.filter((c) => c.estado === 'aviso').length;
@@ -698,6 +714,7 @@
     $ig.addEventListener?.('change', analisar);
     $ano.addEventListener('change', analisar);
     $conf.addEventListener('change', atualizarBotao);
+    $subst.addEventListener('change', atualizarBotao);
     $btn.addEventListener('click', async () => {
       if (!analise || analise.bloqueia) return;
       $btn.disabled = true; $btn.innerHTML = '<span class="spin"></span>Enviando…';
