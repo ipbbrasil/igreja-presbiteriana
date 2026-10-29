@@ -1,3 +1,14 @@
+/* ---------- Fontes (no próprio site; licença SIL OFL 1.1). Arquivos variáveis: um por família cobre todos os pesos.
+   O latin-ext só é baixado se aparecer um caractere fora do português. ---------- */
+@font-face { font-family: 'Fraunces'; font-style: normal; font-weight: 400 700; font-display: swap; src: url(../vendor/fonts/fraunces-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Fraunces'; font-style: normal; font-weight: 400 700; font-display: swap; src: url(../vendor/fonts/fraunces-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'IBM Plex Sans'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(../vendor/fonts/plex-sans-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(../vendor/fonts/plex-sans-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
 /* ---------- Tokens (mesma identidade visual de ipbbrasil.github.io/IPB-Brasil) ---------- */
 :root {
   color-scheme: light;
@@ -76,7 +87,7 @@ button, input, textarea { font: inherit; color: inherit; }
 .nav {
   position: fixed; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: space-around;
   height: calc(var(--nav-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
-  background: rgba(247, 244, 236, .96); backdrop-filter: blur(6px); border-top: 1px solid var(--line);
+  background: var(--paper); border-top: 1px solid var(--line); /* sem desfoque: deixava a rolagem pesada no celular */
 }
 .nav .brand { display: none; }
 .nav-i { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: var(--muted); font-size: 11px; font-weight: 500; min-width: 0; position: relative; }
@@ -101,7 +112,7 @@ button, input, textarea { font: inherit; color: inherit; }
   .nav-i.on::before { display: none; }
   .nav-ic { width: 24px; height: 24px; }
   .nav-ic .badge { top: -7px; right: -9px; min-width: 16px; height: 16px; font-size: 10px; }
-  .appbar { padding: 18px 28px; background: rgba(247, 244, 236, .94); backdrop-filter: blur(6px); color: var(--ink); border-bottom: 1px solid var(--line); }
+  .appbar { padding: 18px 28px; background: var(--paper); color: var(--ink); border-bottom: 1px solid var(--line); }
   .ab-t h1 { font-size: 22px; color: var(--navy-deep); }
   .ab-t small { color: var(--muted); }
   .ab-back:active { background: var(--paper-sunk); }

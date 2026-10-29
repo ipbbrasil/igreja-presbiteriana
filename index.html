@@ -7,7 +7,7 @@
   <meta name="robots" content="noindex, nofollow">
   <!-- Política de segurança: só executa scripts do próprio site e das bibliotecas listadas; só conversa com o Supabase.
        (O GitHub Pages não permite cabeçalhos; a meta tag cobre tudo, menos a proteção contra enquadramento, feita em js/config.js.) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.sheetjs.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://emrqtuvehkwngdnlhhjx.supabase.co wss://emrqtuvehkwngdnlhhjx.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://cdn.sheetjs.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' data: blob: https://emrqtuvehkwngdnlhhjx.supabase.co wss://emrqtuvehkwngdnlhhjx.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="no-referrer">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,9 +17,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Abre a conexão com o banco enquanto a página carrega. Fontes e supabase-js ficam no próprio site:
+       nenhum servidor de terceiros atrasa a abertura, e o service worker guarda tudo no aparelho. -->
+  <link rel="preconnect" href="https://emrqtuvehkwngdnlhhjx.supabase.co" crossorigin>
+  <link rel="preload" href="vendor/fonts/plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="vendor/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -27,7 +29,8 @@
   <div id="tip" role="tooltip" hidden></div>
   <div id="toast" role="status" hidden></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
+  <!-- supabase-js 2.45.4: cópia idêntica ao pacote oficial do jsDelivr (o SRI confere o arquivo) -->
+  <script src="vendor/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug"></script>
   <script src="js/config.js"></script>
   <script src="js/regras.js"></script>
   <script src="js/data.js"></script>

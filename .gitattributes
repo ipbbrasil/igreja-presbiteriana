@@ -1,0 +1,2 @@
+# Bibliotecas com SRI: o Git não pode trocar as quebras de linha (mudaria o hash)
+vendor/** -text

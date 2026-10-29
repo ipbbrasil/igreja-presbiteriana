@@ -112,16 +112,20 @@ window.Data = (() => {
   async function carregar() {
     if (state.modo === 'local') return carregarLocal();
     cacheNacional.clear(); // os totais do sínodo/nacional podem ter mudado
-    // Primeira vez: o histórico (leve) diz quais anos existem; depois disso ele vem junto com o resto
+    // Tudo ao mesmo tempo, inclusive na primeira vez: o exercício é adivinhado (o último escolhido ou o
+    // padrão) enquanto o histórico diz quais anos existem; só se a adivinhação errar o exercício é refeito.
     const primeira = !state.anos.length;
-    if (primeira) { await carregarHistorico(); definirAnos(); }
-    // Tudo do exercício ao mesmo tempo (antes eram várias consultas, uma depois da outra)
-    const [rel, exerc] = await Promise.all([
+    if (primeira) state.ano = +lerPref('painel.ano') || Math.max(cfg.ANO_PADRAO, new Date().getFullYear() - 1);
+    const buscarAno = () => Promise.all([
       sb.from('relatorios').select(SELECT_RELATORIOS).eq('ano', state.ano).neq('status', 'substituido'),
       buscarExercicio(),
-      carregarEnvios(),
-      primeira ? null : carregarHistorico(),
     ]);
+    let [[rel, exerc]] = await Promise.all([buscarAno(), carregarEnvios(), carregarHistorico()]);
+    if (primeira) {
+      const tentado = state.ano;
+      definirAnos();
+      if (state.ano !== tentado) [rel, exerc] = await buscarAno();
+    }
     if (rel.error) throw rel.error;
     state.relatorios = rel.data.map((r) => ({
       id: r.id, ano: r.ano, versao: r.versao, status: r.status, arquivo: r.arquivo, tipo_pdf: r.tipo_pdf, modelo: r.modelo,

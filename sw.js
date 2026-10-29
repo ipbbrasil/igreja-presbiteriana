@@ -1,7 +1,7 @@
 // Service worker: guarda só os arquivos do app (nunca os dados) para abrir rápido.
-const VERSAO = 'painel-v32';
+const VERSAO = 'painel-v33';
 const ARQUIVOS = [
-  './', 'index.html', 'css/app.css', 'js/config.js', 'js/regras.js', 'js/data.js', 'js/mapa-brasil.js', 'js/charts.js', 'js/dicionario.js', 'js/leitura.js', 'js/envio.js', 'js/resumo.js', 'js/exportar.js', 'js/ajuda.js', 'js/privacidade.js', 'js/app.js',
+  './', 'index.html', 'css/app.css', 'vendor/supabase.min.js', 'vendor/fonts/fraunces-latin.woff2', 'vendor/fonts/plex-sans-latin.woff2', 'js/config.js', 'js/regras.js', 'js/data.js', 'js/mapa-brasil.js', 'js/charts.js', 'js/dicionario.js', 'js/leitura.js', 'js/envio.js', 'js/resumo.js', 'js/exportar.js', 'js/ajuda.js', 'js/privacidade.js', 'js/app.js',
   'manifest.webmanifest', 'icons/logo_ipb.png', 'icons/favicon.png', 'icons/icon-192.png',
 ];
 
