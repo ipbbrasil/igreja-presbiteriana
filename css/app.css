@@ -41,11 +41,12 @@
 
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+/* Sem "puxar para atualizar" nem efeito elástico ao puxar a tela para baixo */
+html { -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
 body {
   margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans);
   font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
 }
 a { color: inherit; text-decoration: none; }
 h1, h2, h3 { margin: 0; line-height: 1.2; font-family: var(--serif); font-weight: 600; color: var(--navy-deep); }

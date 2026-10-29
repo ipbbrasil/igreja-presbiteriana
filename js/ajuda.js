@@ -364,7 +364,7 @@ window.Ajuda = (() => {
         <dt>A planilha “não está na posição do modelo”</dt><dd>Foram inseridas ou apagadas linhas no Excel. Use o modelo oficial CSM-IPB sem alterar a estrutura.</dd>
         <dt>Transferência diz que não há outro presbitério</dt><dd>Só existe um presbitério cadastrado. O superadministrador precisa cadastrar o presbitério de destino.</dd>
         <dt>Visão nacional ou Estrutura mostram erro</dt><dd>Os scripts mais recentes do banco ainda não foram aplicados (009 e 010). Avise o responsável técnico.</dd>
-        <dt>O aplicativo mostra algo antigo</dt><dd>Feche o aplicativo e abra de novo (ou recarregue a página).</dd>
+        <dt>O aplicativo mostra algo antigo</dt><dd>Feche o aplicativo e abra de novo (no computador, recarregue a página). Puxar a tela para baixo não atualiza: esse gesto fica desligado para não recarregar sem querer.</dd>
       </dl>`,
     },
     {

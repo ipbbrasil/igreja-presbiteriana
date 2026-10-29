@@ -6,6 +6,19 @@
   const $app = document.getElementById('app');
   const ui = { escopo: 'validados', carregado: false };
 
+  // ---------- Sem "puxar para atualizar" ----------
+  // O CSS (overscroll-behavior) resolve no Android; no iPhone, ignora o gesto de puxar para baixo
+  // quando nada embaixo do dedo ainda pode rolar para cima (assim a tela não faz nada).
+  let toqueY = 0;
+  document.addEventListener('touchstart', (e) => { if (e.touches.length === 1) toqueY = e.touches[0].clientY; }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length !== 1 || e.touches[0].clientY <= toqueY) return;
+    for (let el = e.target; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollTop > 0 && el.scrollHeight > el.clientHeight) return;
+    }
+    if ((document.scrollingElement || document.documentElement).scrollTop <= 0 && e.cancelable) e.preventDefault();
+  }, { passive: false });
+
   // ---------- Ícones ----------
   const ICON = {
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
