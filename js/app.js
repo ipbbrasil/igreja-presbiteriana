@@ -19,6 +19,18 @@
     if ((document.scrollingElement || document.documentElement).scrollTop <= 0 && e.cancelable) e.preventDefault();
   }, { passive: false });
 
+  // ---------- Sem zoom ----------
+  // O viewport (user-scalable=no) trava a pinça no Android; o iPhone o ignora, então a pinça é
+  // barrada pelos eventos do Safari e pelo movimento com dois dedos. Áreas com a classe .pode-zoom
+  // (nenhuma por enquanto) ficam liberadas. Um dedo só nunca é bloqueado: a rolagem continua.
+  const podeZoom = (alvo) => alvo && alvo.closest && alvo.closest('.pode-zoom');
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((tipo) => {
+    document.addEventListener(tipo, (e) => { if (!podeZoom(e.target)) e.preventDefault(); }, { passive: false });
+  });
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1 && !podeZoom(e.target) && e.cancelable) e.preventDefault();
+  }, { passive: false });
+
   // ---------- Ícones ----------
   const ICON = {
     home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',

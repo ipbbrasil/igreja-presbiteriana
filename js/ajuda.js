@@ -365,6 +365,7 @@ window.Ajuda = (() => {
         <dt>Transferência diz que não há outro presbitério</dt><dd>Só existe um presbitério cadastrado. O superadministrador precisa cadastrar o presbitério de destino.</dd>
         <dt>Visão nacional ou Estrutura mostram erro</dt><dd>Os scripts mais recentes do banco ainda não foram aplicados (009 e 010). Avise o responsável técnico.</dd>
         <dt>O aplicativo mostra algo antigo</dt><dd>Feche o aplicativo e abra de novo (no computador, recarregue a página). Puxar a tela para baixo não atualiza: esse gesto fica desligado para não recarregar sem querer.</dd>
+        <dt>A tela não aumenta com dois dedos</dt><dd>No celular o zoom fica desligado (pinça, toque duplo e o aumento automático do iPhone ao tocar num campo), para o aplicativo não sair do lugar. Se precisar de letras maiores, use o tamanho de texto do navegador: no Android, Chrome → ⋮ → Configurações → Acessibilidade; no iPhone, abra o site pelo Safari e toque em <em>aA</em>. No computador o zoom do navegador (Ctrl + roda do mouse) continua funcionando.</dd>
       </dl>`,
     },
     {

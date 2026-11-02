@@ -53,7 +53,9 @@
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
 /* Sem "puxar para atualizar" nem efeito elástico ao puxar a tela para baixo */
-html { -webkit-text-size-adjust: 100%; overscroll-behavior: none; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
+/* Sem zoom: toque duplo não aumenta a tela (e o toque responde sem atraso) */
+html, body { touch-action: manipulation; }
 body {
   margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans);
   font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased;
@@ -62,6 +64,8 @@ body {
 a { color: inherit; text-decoration: none; }
 h1, h2, h3 { margin: 0; line-height: 1.2; font-family: var(--serif); font-weight: 600; color: var(--navy-deep); }
 button, input, textarea { font: inherit; color: inherit; }
+/* iPhone dá zoom em qualquer campo com letra menor que 16px */
+input, textarea, select, [contenteditable] { font-size: max(16px, 1em); }
 .ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
@@ -323,7 +327,7 @@ textarea, .form input { width: 100%; padding: 10px 12px; border-radius: 3px; bor
 .login-t { font-family: var(--serif); font-size: 21px; color: var(--navy-deep); margin: 0; }
 .login .form input[readonly] { color: var(--muted); }
 .envios .btns { margin-top: 8px; }
-select, .campos input[type="text"], .campos input[type="email"], .campos input[type="date"] { width: 100%; height: 46px; padding: 0 12px; border-radius: 3px; border: 1px solid var(--line); background: var(--paper); font-size: 15px; color: var(--ink); }
+select, .campos input[type="text"], .campos input[type="email"], .campos input[type="date"] { width: 100%; height: 46px; padding: 0 12px; border-radius: 3px; border: 1px solid var(--line); background: var(--paper); font-size: 16px; color: var(--ink); }
 .campos input:disabled { color: var(--navy-deep); font-weight: 600; opacity: 1; }
 .drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 140px; padding: 20px; border: 2px dashed var(--line); background: var(--paper); text-align: center; cursor: pointer; border-radius: var(--radius); }
 .drop:hover, .drop:focus-within { border-color: var(--gold); }
