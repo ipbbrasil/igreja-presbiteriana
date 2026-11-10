@@ -1,4 +1,4 @@
-window.Privacidade=(()=>{const a="23/10/2026",o=(e,i)=>`<section class="card pv-sec"><header class="card-h"><h2>${e}</h2></header><div class="aj-c">${i}</div></section>`;function s(){return`
+window.Privacidade=(()=>{const a="10/11/2026",o=(e,i)=>`<section class="card pv-sec"><header class="card-h"><h2>${e}</h2></header><div class="aj-c">${i}</div></section>`;function s(){return`
       <p class="nota top">Versão de ${a}. Este aviso explica, de forma simples, como a plataforma de estatística trata dados pessoais, conforme a Lei Geral de Proteção de Dados (LGPD — Lei 13.709/2018).</p>
       ${o("1. Quem é responsável",`<p>A plataforma é utilizada pelo <strong>presbitério</strong> ao qual a sua igreja está vinculada, para receber e consolidar os relatórios estatísticos oficiais das igrejas. O presbitério é o responsável pelo tratamento dos dados dos seus usuários e relatórios.</p>
         <p>Para qualquer assunto de privacidade, fale com o <strong>administrador do seu presbitério</strong> (a pessoa que enviou o seu convite).</p>`)}
@@ -28,6 +28,7 @@ window.Privacidade=(()=>{const a="23/10/2026",o=(e,i)=>`<section class="card pv-
         </ul>`)}
       ${o("6. Onde os dados ficam e como são protegidos",`<ul>
           <li>Os dados e arquivos ficam no serviço de banco de dados em nuvem <strong>Supabase</strong>; o site é publicado pelo <strong>GitHub Pages</strong>, que hospeda apenas o programa, sem dados.</li>
+          <li>Uma <strong>cópia de segurança</strong> de todo o banco é feita uma vez por semana e guardada por 90 dias no repositório privado do código (GitHub), <strong>criptografada</strong> com senha que só o responsável técnico tem. Ela não inclui senhas nem os arquivos originais.</li>
           <li>Toda comunicação é <strong>criptografada</strong> (HTTPS). As regras de acesso ficam no próprio banco de dados, que recusa qualquer leitura fora da jurisdição do usuário.</li>
           <li>A chave secreta do banco não fica no site. Os arquivos originais ficam em pasta <strong>privada</strong>.</li>
           <li>Cópias de segurança baixadas pelo administrador contêm e-mails de usuários e devem ser guardadas como documento confidencial.</li>
